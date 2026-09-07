@@ -1,6 +1,6 @@
 # Lerna research
 
-Lerna keeps HydraFusion's planner on GitHub Copilot and moves only a mapped model inference call to the same model deployed in Azure Foundry. It is not a universal model proxy, and it is not necessarily cheaper. The point is control: preserve Copilot's orchestration, spend the model leg against an Azure subscription when that is useful, and authenticate with Microsoft Entra rather than a static API key.
+Lerna keeps HydraFusion's planner on GitHub Copilot and moves only a mapped model inference call to the same model deployed in Microsoft Foundry. It is not a universal model proxy, and it is not necessarily cheaper. The point is control: preserve Copilot's orchestration, spend the model leg against an Azure subscription when that is useful, and authenticate with Microsoft Entra rather than a static API key.
 
 ## Contents
 
@@ -155,7 +155,7 @@ A Cascade turn can look roughly like this:
 ⎇ Lerna · Read Sol · `src/Lerna/Bridge.cs`
 ⎇ Lerna Sol is streaming, 48 KiB received.
 ⎇ Lerna HydraFusion completed solver on Sol in 18.4s: 14.7K input, 2.1K output, 14.4K cached.
-⎇ Lerna · Route Sol → Azure Foundry
+⎇ Lerna · Route Sol → Microsoft Foundry
 ```
 
 Lerna should use the SDK events as the source of truth. Lerna also sees every response chunk passing through the bridge, so it can measure time to first byte and cumulative bytes for BYOK and Copilot passthrough calls. That is useful as a fallback when `assistant.streaming_delta` is missing, but Lerna should count bytes only. Parsing and republishing provider SSE text would weaken the current byte-for-byte response boundary and create a second renderer beside Copilot's own.
@@ -286,11 +286,11 @@ All rates below are USD per 1M tokens for the short/default context tier. Azure 
 
 | Model | Provider | Input | Cached input | Cache write | Output |
 | --- | --- | ---: | ---: | ---: | ---: |
-| GPT-5.6 Sol | Azure Foundry | $5.00 | $0.50 | $6.25 | $30.00 |
+| GPT-5.6 Sol | Microsoft Foundry | $5.00 | $0.50 | $6.25 | $30.00 |
 | GPT-5.6 Sol | GitHub Copilot | $4.00 | $0.40 | $5.00 | $20.00 |
-| GPT-5.6 Terra | Azure Foundry | $2.00 | $0.20 | $2.50 | $12.00 |
+| GPT-5.6 Terra | Microsoft Foundry | $2.00 | $0.20 | $2.50 | $12.00 |
 | GPT-5.6 Terra | GitHub Copilot | $2.00 | $0.20 | $2.50 | $12.00 |
-| GPT-5.6 Luna | Azure Foundry | $0.20 | $0.02 | $0.25 | $1.20 |
+| GPT-5.6 Luna | Microsoft Foundry | $0.20 | $0.02 | $0.25 | $1.20 |
 | GPT-5.6 Luna | GitHub Copilot | $0.20 | $0.02 | $0.25 | $1.20 |
 | Claude Opus 5 | Foundry marketplace | $5.00 | $0.50 | $6.25 for 5m | $25.00 |
 | Claude Opus 5 | GitHub Copilot | $5.00 | $0.50 | $6.25 | $25.00 |

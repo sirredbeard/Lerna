@@ -399,7 +399,7 @@ export function createVerboseReporter({
     reportResponse: ({ status, via, adaptedModel }) => {
       if (via !== "byok" || !adaptedModel) return Promise.resolve();
       const failure = Number(status) >= 400 ? ` · HTTP ${status}` : "";
-      return emit(`${modelText(adaptedModel)} → Azure Foundry${failure}`, {
+      return emit(`${modelText(adaptedModel)} → Microsoft Foundry${failure}`, {
         ephemeral: false, level: failure ? "warning" : "info", label: "Route",
       });
     },

@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 namespace Lerna;
 
 /// <summary>
-/// Builds the outbound Azure Foundry BYOK request for one accepted-model inference call, in
+/// Builds the outbound Microsoft Foundry BYOK request for one accepted-model inference call, in
 /// whichever wire format that model's <see cref="ModelMapping"/> declares. Both wires stream
 /// their response back through the existing head-then-chunks bridge framing with via="byok";
 /// neither implementation ever logs or forwards a raw body, token, or key -- callers pass in an
@@ -141,7 +141,7 @@ public static class ModelWire
 
     /// <summary>Builds the outbound HttpRequestMessage for the given mapping's wire. Bearer-only
     /// (never api-key); adds the mandatory anthropic-version header for the Anthropic wire.
-    /// No api-version query parameter is ever added -- Azure Foundry's Anthropic route neither
+    /// No api-version query parameter is ever added -- Microsoft Foundry's Anthropic route neither
     /// needs nor wants one.</summary>
     public static HttpRequestMessage BuildRequest(ModelMapping mapping, byte[] rewrittenBody, string bearerToken)
     {

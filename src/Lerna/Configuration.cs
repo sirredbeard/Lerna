@@ -17,7 +17,7 @@ public static class HydraModels
         "mai-code-1.1-flash", "mai-code-1-flash-picker",
     ];
 
-    /// <summary>These two have no Azure Foundry equivalent and the user explicitly refused a
+    /// <summary>These two have no Microsoft Foundry equivalent and the user explicitly refused a
     /// substitute. They must always stay on Copilot and must never be mapped to BYOK.</summary>
     public static readonly IReadOnlySet<string> NoAzureEquivalent =
         new HashSet<string>(["mai-code-1.1-flash", "mai-code-1-flash-picker"], StringComparer.Ordinal);
@@ -43,7 +43,7 @@ public sealed record ModelMapping
     /// wire format.</summary>
     public required string Endpoint { get; init; }
 
-    /// <summary>"responses" (Azure OpenAI Responses wire) or "anthropic" (Azure Foundry's
+    /// <summary>"responses" (Azure OpenAI Responses wire) or "anthropic" (Microsoft Foundry's
     /// Anthropic Messages wire). Both are implemented; see <see cref="ModelWire"/>.</summary>
     public required string Wire { get; init; }
 

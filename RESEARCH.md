@@ -228,13 +228,13 @@ The generated key has these properties:
 
 - exactly 64 characters, matching the Responses API limit
 - a `lerna:` prefix followed by 58 lowercase SHA-256 hexadecimal characters
-- no raw resource name, resource ID, deployment, user identifier, repository text, tool definition, instruction, or prompt text
-- scoped by Azure resource ID and deployment
+- no raw resource name, resource ID, deployment, user identifier, repository path, instruction, tool definition, or prompt text
+- scoped by the local OS user and current Copilot workspace
+- scoped again by Azure resource ID and deployment
 - additionally scoped by `safety_identifier` when the caller supplies one
-- changes when stable instructions, system content, tools, tool policy, output schema, or reasoning configuration changes
-- stays the same when only user, assistant, or tool-result conversation content changes
+- stable when session IDs, timestamps, instructions, tool state, or conversation content change inside the same workspace
 
-Lerna includes leading `system` and `developer` input messages in the stable context, then stops at the first variable conversation item. This lets append-only turns share a cache namespace without baking the latest user request into the key.
+The cache key is intentionally independent of prompt content. The first attempt hashed Copilot's instructions and tool context into the key, but those fields can contain a timestamp or other per-session metadata. Two otherwise equivalent sessions then received different keys before Azure could compare their token prefixes. The corrected key names the local trust and routing boundary, then lets Azure's required prefix comparison decide whether a cache entry is actually reusable.
 
 Lerna does not add `prompt_cache_options`. This is deliberate. Azure's default `implicit` mode continues to operate, including it's latest-message breakpoint. The earlier incomplete attempt set `mode` to `explicit` without adding an explicit content breakpoint, which disables caching entirely according to Microsoft's August 11, 2026 documentation. That would have removed cache-write charges, but it would not have optimized cache reuse.
 
@@ -244,7 +244,7 @@ Caller policy wins:
 - existing `prompt_cache_options` are preserved
 - existing nested `prompt_cache_breakpoint` fields are preserved
 - Anthropic Messages requests are not given OpenAI Responses cache fields
-- a one-off Responses request with no stable instructions or tools is left alone
+- every mapped Responses request in the same workspace gets the same scoped routing key unless the caller supplies one
 
 The key does not make unlike prompts match. Azure still checks the token prefix. It gives equivalent requests a stable routing hint while keeping request content out of logs and visible identifiers.
 
@@ -252,9 +252,13 @@ No explicit breakpoint is injected yet. Lerna cannot safely guess that arbitrary
 
 ## Limits and follow-up measurements
 
-The code change is covered by local wire tests for key length, stable reuse across different user turns, resource and identity separation, prompt-text secrecy, caller-field preservation, one-off behavior, and the Anthropic boundary.
+The code change is covered by local wire tests for key length, stability across prompt changes, workspace, resource, and identity separation, prompt-text secrecy, caller-field preservation, and the Anthropic boundary.
 
-A release build proves that the request is accepted and routed. It does not prove a cache hit by itself. The next live measurement should make two or more Azure Responses calls within 30 minutes using the same stable prefix and record only:
+The corrected native build was also exercised through Copilot CLI 1.0.83 before release. A first Sol turn reported 14.7K input tokens, all written. A resumed Hydra turn reported 47.1K input tokens, including 14.4K cached and 32.7K written. The first turn routed Sol; the resumed turn routed Luna, Terra, then Luna again. Both runs reported zero GitHub AI credits, and the extension logs recorded every model call `via: byok`. That proves the corrected request is accepted and cache reads remain active, although the CLI's aggregate usage line does not attribute the 14.4K cached tokens to one specific model call.
+
+An identical prompt in a fresh Copilot session still wrote 14.7K tokens. The cache key cannot repair a different first 1,024-token prefix, and Copilot's new-session context is different enough to miss. The useful target is append-only reuse inside a session, not pretending separate sessions are identical.
+
+Future live measurements should record only:
 
 ```text
 model
@@ -266,7 +270,7 @@ output_tokens
 
 Do not log prompts or cache-key values. A hash comparison is enough to confirm key stability.
 
-The useful success condition is not merely fewer cache writes. It is cache writes turning into cache reads on the second and third request while output and tool behavior remain unchanged.
+The useful success condition is cache writes turning into cache reads on later turns while output and tool behavior remain unchanged. The resumed Sol test met that condition with 14.4K cached tokens.
 
 ## Sources
 

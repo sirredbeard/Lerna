@@ -49,7 +49,15 @@ Check(secondKey == firstKey, "variable user input changed the stable cache names
 var changedInstructions = (JsonObject)baseBody.DeepClone();
 changedInstructions["instructions"] = "Different repository instructions";
 var instructionKey = Rewrite(changedInstructions)["prompt_cache_key"]!.GetValue<string>();
-Check(instructionKey != firstKey, "different stable instructions shared a cache namespace");
+Check(instructionKey == firstKey, "prompt content changed the workspace cache namespace");
+
+var originalDirectory = Environment.CurrentDirectory;
+var otherDirectory = Path.Combine(Path.GetTempPath(), "lerna-cache-scope-test");
+Directory.CreateDirectory(otherDirectory);
+Environment.CurrentDirectory = otherDirectory;
+var workspaceKey = Rewrite((JsonObject)baseBody.DeepClone())["prompt_cache_key"]!.GetValue<string>();
+Environment.CurrentDirectory = originalDirectory;
+Check(workspaceKey != firstKey, "different local workspaces shared a cache namespace");
 
 var otherResource = new ModelMapping
 {
@@ -74,8 +82,9 @@ var preserved = Rewrite(callerOwned);
 Check(preserved["prompt_cache_key"]!.GetValue<string>() == "caller-owned", "caller cache key was overwritten");
 Check(preserved["prompt_cache_options"]!["mode"]!.GetValue<string>() == "explicit", "caller cache options were overwritten");
 
-var noStableContext = Rewrite(new JsonObject { ["model"] = "gpt-5.6-sol", ["input"] = "one-off prompt" });
-Check(noStableContext["prompt_cache_key"] is null, "one-off input received an unstable generated key");
+var oneOff = Rewrite(new JsonObject { ["model"] = "gpt-5.6-sol", ["input"] = "one-off prompt" });
+Check(oneOff["prompt_cache_key"]!.GetValue<string>() == firstKey,
+    "Responses request did not reuse the workspace cache namespace");
 
 var anthropicMapping = otherResource with { Deployment = "claude-opus-5", Wire = ModelWire.Anthropic };
 var anthropic = Rewrite(new JsonObject

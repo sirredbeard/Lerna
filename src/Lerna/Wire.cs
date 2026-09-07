@@ -58,51 +58,18 @@ public static class ModelWire
     {
         if (mapping.Wire != Responses || body["prompt_cache_key"] is not null) return;
 
-        var stableContext = BuildStablePromptContext(body);
-        if (string.IsNullOrEmpty(stableContext)) return;
-
-        // Azure/OpenAI cap prompt_cache_key at 64 characters. Hash the complete scope so the key
-        // contains no resource, identity, repository, tool, or prompt text while still changing
-        // when the Azure resource, deployment, safety identity, or stable prompt prefix changes.
-        var seed = string.Join("\n", mapping.ResourceId, mapping.Deployment,
-            body["safety_identifier"]?.ToJsonString() ?? "", stableContext);
+        // Azure/OpenAI cap prompt_cache_key at 64 characters. Keep the routing key stable across
+        // sessions in the same local workspace, but separate OS users, workspaces, Azure resources,
+        // deployments, and caller-supplied safety identities. Azure still requires an identical
+        // token prefix for a hit, so this key cannot make unrelated prompts share cached content.
+        var seed = string.Join("\n", Environment.UserName, Environment.CurrentDirectory,
+            mapping.ResourceId, mapping.Deployment, body["safety_identifier"]?.ToJsonString() ?? "");
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(seed))).ToLowerInvariant();
         body["prompt_cache_key"] = "lerna:" + hash[..58];
 
         // Do not set prompt_cache_options here. Azure's default implicit mode writes a breakpoint
         // at the latest message. Explicit mode without an explicit content breakpoint disables
         // caching entirely. Caller-provided options and breakpoints are preserved by serialization.
-    }
-
-    private static string BuildStablePromptContext(JsonObject body)
-    {
-        var parts = new List<string>();
-
-        foreach (var key in new[] { "instructions", "system", "tools", "tool_choice", "parallel_tool_calls", "response_format", "reasoning" })
-        {
-            if (body[key] is JsonNode node)
-            {
-                var json = node.ToJsonString();
-                if (!string.IsNullOrWhiteSpace(json)) parts.Add($"{key}:{json}");
-            }
-        }
-
-        // Responses input is conversation state. Only leading system/developer messages belong
-        // in the stable cache namespace; user, assistant, and tool items change as the turn grows.
-        if (body["input"] is JsonArray input)
-        {
-            foreach (var item in input)
-            {
-                if (item is not JsonObject message) break;
-                var role = message["role"]?.GetValueKind() == JsonValueKind.String
-                    ? message["role"]!.GetValue<string>()
-                    : null;
-                if (role is not ("system" or "developer")) break;
-                parts.Add($"input:{message.ToJsonString()}");
-            }
-        }
-
-        return string.Join("\n", parts);
     }
 
     private const string ResponsesPath = "/openai/v1/responses";

@@ -29,4 +29,8 @@
     <InvariantGlobalization Condition="'$(PublishAot)' == 'true'">true</InvariantGlobalization>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="WireCacheHarness" />
+  </ItemGroup>
+
 </Project>

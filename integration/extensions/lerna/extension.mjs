@@ -147,7 +147,7 @@ ready = (async () => {
       await session.log("Lerna can configure Azure, but this build only intercepts Copilot CLI 1.0.83.", { level: "warning" });
     } else if (!interceptionActive) {
       await session.log(
-        "Lerna is active, but a Copilot session was already running in this process. Live routing stays inactive until a fresh Copilot CLI process starts.",
+        "Lerna is active, but the interceptor could not attach because a session already existed when this extension loaded. Resume with `copilot --session-id=<id>` instead of `--resume` to keep routing.",
         { level: "warning" },
       );
     }

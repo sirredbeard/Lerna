@@ -96,6 +96,7 @@ public static class Program
         var json = new JsonObject
         {
             ["enabled"] = config.Enabled,
+            ["verbose"] = config.Verbose,
             ["configured"] = config.Configured,
             ["model"] = config.Model,
             ["deployment"] = config.EffectiveDeployment,
@@ -155,6 +156,7 @@ public static class Program
         var config = new LernaConfig
         {
             Enabled = preservedEnabled,
+            Verbose = existing.Verbose,
             Model = model,
             Deployment = deployment,
             Endpoint = endpoint,

@@ -150,7 +150,7 @@ test('status on a missing config file reports disabled/unconfigured without erro
   const cfg = freshConfigPath();
   const result = parseStdoutJson(runCli(['status', '--config', cfg]));
   assert.deepEqual(result, {
-    enabled: false, configured: false, model: null, deployment: null, endpoint: null,
+    enabled: false, verbose: true, configured: false, model: null, deployment: null, endpoint: null,
     keySource: null, keyEnv: null, keyFile: null, compatibilityProbe: false,
     azure: { loggedIn: false },
   });
@@ -287,6 +287,15 @@ test('configure preserves the enabled flag across a re-configure, and defaults i
   const reconfigured = parseStdoutJson(runCli(['configure', '--config', cfg, '--model', 'model-b', '--endpoint', endpoint, '--key-env', 'K']));
   assert.equal(reconfigured.enabled, true, 'enabled flag must survive a reconfigure');
   assert.equal(reconfigured.model, 'model-b');
+});
+
+test('configure preserves the verbose preference', async () => {
+  const cfg = freshConfigPath();
+  await writeFile(cfg, JSON.stringify({ lerna: { enabled: false, verbose: true } }));
+  const result = parseStdoutJson(runCli(['configure', '--config', cfg, '--model', 'model-a',
+    '--endpoint', 'https://x.cognitiveservices.azure.com/openai/v1/responses', '--key-env', 'K']));
+  assert.equal(result.verbose, true);
+  assert.equal(JSON.parse(await readFile(cfg, 'utf8')).lerna.verbose, true);
 });
 
 test('configure defaults deployment to model when --deployment is omitted', () => {
@@ -450,42 +459,69 @@ test('serve: status/environment/attach/event acknowledge with the documented sha
     assert.equal(status.id, '1');
     assert.equal(status.type, 'result');
     assert.deepEqual(status.value, {
-      enabled: true, configured: true, model: 'gpt-5.6-terra', deployment: 'gpt-5.6-terra',
+      enabled: true, verbose: true, configured: true, model: 'gpt-5.6-terra', deployment: 'gpt-5.6-terra',
       endpoint: 'https://foo.cognitiveservices.azure.com/openai/v1/responses',
       requiredEnvironmentVariables: ['FOO_KEY'],
     });
 
-    session.send({ id: '2', op: 'environment', values: { FOO_KEY: 'shh', UNRELATED: 'ignored' } });
-    const env = await session.next();
-    assert.deepEqual(env, { id: '2', type: 'result', value: true });
+    session.send({ id: '2', op: 'verbose', enabled: true });
+    const verbose = await session.next();
+    assert.deepEqual(verbose, { id: '2', type: 'result', value: { verbose: true } });
+    assert.equal(JSON.parse(await readFile(cfg, 'utf8')).lerna.verbose, true);
 
-    session.send({ id: '3', op: 'attach', sessionId: 'session-abc' });
+    session.send({ id: '2a', op: 'verbose' });
+    assert.deepEqual(await session.next(), { id: '2a', type: 'error', error: 'verbose requires a boolean enabled value' });
+    session.send({ id: '2b', op: 'verbose', enabled: 'yes' });
+    assert.deepEqual(await session.next(), { id: '2b', type: 'error', error: 'verbose requires a boolean enabled value' });
+
+    session.send({ id: '2c', op: 'status' });
+    assert.equal((await session.next()).value.verbose, true, 'invalid values must not change the saved preference');
+
+    session.send({ id: '3', op: 'environment', values: { FOO_KEY: 'shh', UNRELATED: 'ignored' } });
+    const env = await session.next();
+    assert.deepEqual(env, { id: '3', type: 'result', value: true });
+
+    session.send({ id: '4', op: 'attach', sessionId: 'session-abc' });
     const attach = await session.next();
-    assert.deepEqual(attach, { id: '3', type: 'result', value: true });
+    assert.deepEqual(attach, { id: '4', type: 'result', value: true });
 
     session.send({
-      id: '4', op: 'event', sessionId: 'session-abc', event: 'session.fusion_resolved',
+      id: '5', op: 'event', sessionId: 'session-abc', event: 'session.fusion_resolved',
       data: { fusionId: 'f1', primaryModel: 'gpt-5.6-terra' },
     });
     const event = await session.next();
-    assert.deepEqual(event, { id: '4', type: 'result', value: true });
+    assert.deepEqual(event, { id: '5', type: 'result', value: true });
   } finally {
     session.kill();
   }
 });
 
-test('serve: unknown op is silently ignored without disrupting later requests', async () => {
+test('serve: unknown op fails immediately without disrupting later requests', async () => {
   const cfg = freshConfigPath();
   configuredSettings(cfg);
   const session = new ServeSession(cfg);
   try {
     session.send({ id: 'x', op: 'not-a-real-op' });
-    const silence = await session.silenceFor();
-    assert.equal(silence, undefined, 'unknown ops must not produce a reply');
+    assert.deepEqual(await session.next(), { id: 'x', type: 'error', error: 'Unsupported Lerna operation' });
 
     session.send({ id: '1', op: 'status' });
     const status = await session.next();
     assert.equal(status.id, '1');
+  } finally {
+    session.kill();
+  }
+});
+
+test('serve: enable and disable persist routing state', async () => {
+  const cfg = freshConfigPath();
+  configuredSettings(cfg);
+  const session = new ServeSession(cfg);
+  try {
+    session.send({ id: 'd', op: 'disable' });
+    assert.deepEqual(await session.next(), { id: 'd', type: 'result', value: { enabled: false } });
+    session.send({ id: 'e', op: 'enable' });
+    assert.deepEqual(await session.next(), { id: 'e', type: 'result', value: { enabled: true } });
+    assert.equal(JSON.parse(await readFile(cfg, 'utf8')).lerna.enabled, true);
   } finally {
     session.kill();
   }
@@ -985,7 +1021,7 @@ test('serve: a request for an already-mapped Anthropic-wire model is routed (and
     })).toString('base64');
     session.send({
       id: 'f1', op: 'forward', sessionId: 'sess-1', method: 'POST',
-      url: 'https://api.individual.githubcopilot.com/responses', headers: {}, body,
+      url: 'https://api.individual.githubcopilot.com/v1/messages', headers: {}, body,
     });
     const reply = await session.next(10000);
     assert.equal(reply.id, 'f1');

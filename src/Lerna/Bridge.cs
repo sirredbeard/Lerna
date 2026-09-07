@@ -125,6 +125,9 @@ public sealed class Bridge
         switch (op)
         {
             case "status": return string.IsNullOrEmpty(id) ? Task.CompletedTask : HandleStatus(id, writer);
+            case "verbose": return string.IsNullOrEmpty(id) ? Task.CompletedTask : HandleVerbose(id, message, writer);
+            case "enable": return string.IsNullOrEmpty(id) ? Task.CompletedTask : HandleEnabled(id, true, writer);
+            case "disable": return string.IsNullOrEmpty(id) ? Task.CompletedTask : HandleEnabled(id, false, writer);
             case "environment": return string.IsNullOrEmpty(id) ? Task.CompletedTask : HandleEnvironment(id, message, writer);
             case "attach": return string.IsNullOrEmpty(id) ? Task.CompletedTask : HandleAttach(id, message, writer);
             case "event": return string.IsNullOrEmpty(id) ? Task.CompletedTask : HandleEvent(id, message, writer);
@@ -135,7 +138,7 @@ public sealed class Bridge
             case "azure.logout": return string.IsNullOrEmpty(id) ? Task.CompletedTask : HandleAzureLogout(id, writer);
             case "credit": HandleCredit(message); return Task.CompletedTask;
             case "cancel": return HandleCancel(message, writer);
-            default: return Task.CompletedTask; // unknown op: silently ignored, nothing to reply to safely
+            default: return string.IsNullOrEmpty(id) ? Task.CompletedTask : writer.WriteError(id, "Unsupported Lerna operation");
         }
     }
 
@@ -149,6 +152,7 @@ public sealed class Bridge
         var value = new JsonObject
         {
             ["enabled"] = config.Enabled,
+            ["verbose"] = config.Verbose,
             ["configured"] = config.Configured,
             ["model"] = config.Model,
             ["deployment"] = config.EffectiveDeployment,
@@ -162,6 +166,46 @@ public sealed class Bridge
             value["models"] = models;
         }
         return writer.WriteResult(id, value);
+    }
+
+    private Task HandleVerbose(string id, JsonObject message, OutputWriter writer)
+    {
+        if (message["enabled"]?.GetValueKind() is not (JsonValueKind.True or JsonValueKind.False))
+            return writer.WriteError(id, "verbose requires a boolean enabled value");
+
+        var enabled = message["enabled"]!.GetValue<bool>();
+        var root = SettingsFile.LoadRoot(_configPath);
+        var updated = SettingsFile.ReadLerna(root) with { Verbose = enabled };
+        SettingsFile.WriteLerna(root, updated);
+        SettingsFile.SaveRootAtomic(_configPath, root);
+        return writer.WriteResult(id, new JsonObject { ["verbose"] = updated.Verbose });
+    }
+
+    private Task HandleEnabled(string id, bool enabled, OutputWriter writer)
+    {
+        var root = SettingsFile.LoadRoot(_configPath);
+        var existing = SettingsFile.ReadLerna(root);
+        if (enabled)
+        {
+            if (existing.CompatibilityProbe)
+                return writer.WriteError(id, "Run `lerna configure` first; a legacy lerna.probe section cannot be enabled directly");
+
+            var hasLegacy = !string.IsNullOrEmpty(existing.Model) || !string.IsNullOrEmpty(existing.Endpoint)
+                || !string.IsNullOrEmpty(existing.KeyEnv) || !string.IsNullOrEmpty(existing.KeyFile);
+            var errors = hasLegacy ? existing.FormatErrors() : new List<string>();
+            errors.AddRange(existing.ModelsFormatErrors());
+            if (!hasLegacy && existing.Models.Count == 0)
+                errors.Add("model is required, or at least one lerna.models mapping");
+            if (errors.Count > 0) return writer.WriteError(id, "Cannot enable: " + string.Join("; ", errors));
+            if (!string.IsNullOrEmpty(existing.KeyFile)
+                && ConfigValidation.CheckKeyFileAccess(existing.KeyFile) is { } keyFileError)
+                return writer.WriteError(id, "Cannot enable: " + keyFileError);
+        }
+
+        var updated = existing with { Enabled = enabled };
+        SettingsFile.WriteLerna(root, updated);
+        SettingsFile.SaveRootAtomic(_configPath, root);
+        return writer.WriteResult(id, new JsonObject { ["enabled"] = updated.Enabled });
     }
 
     private Task HandleEnvironment(string id, JsonObject message, OutputWriter writer)
@@ -250,16 +294,18 @@ public sealed class Bridge
             var result = await GitHubImport.RunAsync(repository, gitRef, filePath, cts.Token).ConfigureAwait(false);
 
             var root = SettingsFile.LoadRoot(_configPath);
-            SettingsFile.WriteLerna(root, result.Config);
+            var imported = result.Config with { Verbose = SettingsFile.ReadLerna(root).Verbose };
+            SettingsFile.WriteLerna(root, imported);
             SettingsFile.SaveRootAtomic(_configPath, root);
 
             var value = new JsonObject
             {
-                ["enabled"] = result.Config.Enabled,
-                ["configured"] = result.Config.Configured,
-                ["model"] = result.Config.Model,
-                ["deployment"] = result.Config.EffectiveDeployment,
-                ["endpoint"] = result.Config.Endpoint,
+                ["enabled"] = imported.Enabled,
+                ["verbose"] = imported.Verbose,
+                ["configured"] = imported.Configured,
+                ["model"] = imported.Model,
+                ["deployment"] = imported.EffectiveDeployment,
+                ["endpoint"] = imported.Endpoint,
                 ["source"] = new JsonObject
                 {
                     ["repository"] = result.Config.SourceRepository,
@@ -392,7 +438,7 @@ public sealed class Bridge
             state.Dispose();
             return writer.WriteError(id, "Duplicate request id");
         }
-        state.Cts.CancelAfter(ForwardTimeout);
+        state.RefreshTimeout();
 
         _ = RunForward(id, message, writer, state);
         return Task.CompletedTask;
@@ -456,14 +502,13 @@ public sealed class Bridge
             return;
         }
 
-        if (eligible && uri.AbsolutePath == "/responses" && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+        if (eligible && (uri.AbsolutePath is "/responses" or "/v1/messages")
+            && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
         {
-            if (_acceptedPrimary.ContainsKey(sessionId)
+            if (uri.AbsolutePath == "/responses" && _acceptedPrimary.ContainsKey(sessionId)
                 && await TryForwardByok(id, sessionId, body, config, writer, token).ConfigureAwait(false)) return;
-            // Independent of the legacy pendingPlan/fusion_resolved gate: a request whose own
-            // declared model is already one of config.Models was never rewritten by us (see
-            // TryAdaptPlan's "Unchanged" outcome below), so nothing here needs confirming --
-            // we just route that model's inference to its own mapped Azure deployment.
+            // Copilot uses /responses for OpenAI-wire models and /v1/messages for Anthropic-wire
+            // models. In both cases the declared model selects its own validated Azure mapping.
             if (config.Models.Count > 0
                 && await TryForwardMapped(id, sessionId, body, config, writer, token).ConfigureAwait(false)) return;
         }
@@ -747,11 +792,13 @@ public sealed class Bridge
         await writer.WriteHead(id, (int)response.StatusCode, headers, via, adaptedModel).ConfigureAwait(false);
 
         if (!_active.TryGetValue(id, out var state)) return; // cancelled between accept and here
+        state.RefreshTimeout();
 
         if (replacementBody is not null)
         {
             await state.Credit.WaitAsync(token).ConfigureAwait(false);
             await writer.WriteChunk(id, replacementBody).ConfigureAwait(false);
+            state.RefreshTimeout();
         }
         else
         {
@@ -763,6 +810,7 @@ public sealed class Bridge
                 var read = await stream.ReadAsync(buffer.AsMemory(0, ChunkSize), token).ConfigureAwait(false);
                 if (read == 0) break;
                 await writer.WriteChunk(id, buffer.AsSpan(0, read).ToArray()).ConfigureAwait(false);
+                state.RefreshTimeout();
             }
         }
 
@@ -774,6 +822,7 @@ public sealed class Bridge
         public readonly CancellationTokenSource Cts = new();
         public readonly SemaphoreSlim Credit = new(0, 2);
         public readonly TaskCompletionSource Completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void RefreshTimeout() => Cts.CancelAfter(ForwardTimeout);
         public void Dispose() { Cts.Dispose(); Credit.Dispose(); }
     }
 

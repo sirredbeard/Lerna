@@ -1,0 +1,123 @@
+{
+  "window": {
+    "startUtc": "2026-09-07T02:38:42Z",
+    "endUtc": "2026-09-07T14:38:42Z",
+    "durationHours": 12
+  },
+  "environment": {
+    "copilotCliVersion": "1.0.83",
+    "azureResource": "foundry-hb-byok",
+    "azureRegion": "eastus2",
+    "azureSku": "S0",
+    "deploymentSku": "GlobalStandard"
+  },
+  "method": {
+    "copilot": "Local assistant_usage_events rows with mapped model IDs, /responses or /v1/messages, and total_nano_aiu equal to zero",
+    "azure": "Azure Monitor model request, token, cache, latency, and error metrics for the mapped Cognitive Services account",
+    "routing": "Lerna extension response-head logs collected before the temporary diagnostic logging was removed",
+    "cost": "Token totals multiplied by the September 7, 2026 list rates in RESEARCH.md; Azure Cost Management returned HTTP 429 and same-day invoice data may lag"
+  },
+  "models": [
+    {
+      "model": "gpt-5.6-sol",
+      "byokCalls": 624,
+      "inputTokens": 55134645,
+      "cacheReadTokens": 51580210,
+      "cacheWriteTokens": 3539743,
+      "outputTokens": 189063,
+      "cacheReadPercent": 93.55,
+      "estimatedAzureCostUsd": 71.3576,
+      "uncachedAzureCostUsd": 281.3451,
+      "estimatedCacheSavingsUsd": 209.9876,
+      "equivalentCopilotListCostUsd": 56.3298,
+      "equivalentCopilotAiCredits": 5633.0
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "byokCalls": 100,
+      "inputTokens": 7536115,
+      "cacheReadTokens": 6665970,
+      "cacheWriteTokens": 869845,
+      "outputTokens": 24526,
+      "cacheReadPercent": 88.45,
+      "estimatedAzureCostUsd": 0.5542,
+      "uncachedAzureCostUsd": 1.5367,
+      "estimatedCacheSavingsUsd": 0.9824,
+      "equivalentCopilotListCostUsd": 0.5542,
+      "equivalentCopilotAiCredits": 55.4
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "byokCalls": 2,
+      "inputTokens": 3500,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 2780,
+      "outputTokens": 257,
+      "cacheReadPercent": 0.0,
+      "estimatedAzureCostUsd": 0.0170,
+      "uncachedAzureCostUsd": 0.0101,
+      "estimatedCacheSavingsUsd": -0.0070,
+      "equivalentCopilotListCostUsd": 0.0170,
+      "equivalentCopilotAiCredits": 1.7
+    },
+    {
+      "model": "claude-opus-5",
+      "byokCalls": 3,
+      "inputTokens": 75759,
+      "cacheReadTokens": 41812,
+      "cacheWriteTokens": 33941,
+      "outputTokens": 82,
+      "cacheReadPercent": 55.19,
+      "estimatedAzureCostUsd": 0.4048,
+      "uncachedAzureCostUsd": 0.3808,
+      "estimatedCacheSavingsUsd": -0.0240,
+      "equivalentCopilotListCostUsd": 0.4048,
+      "equivalentCopilotAiCredits": 40.5
+    }
+  ],
+  "totals": {
+    "byokCalls": 729,
+    "inputTokens": 62750019,
+    "cacheReadTokens": 58287992,
+    "cacheWriteTokens": 4446309,
+    "outputTokens": 213928,
+    "cacheReadPercent": 92.89,
+    "estimatedAzureCostUsd": 72.3336,
+    "uncachedAzureCostUsd": 283.2727,
+    "estimatedCacheSavingsUsd": 210.9390,
+    "equivalentCopilotListCostUsd": 57.3058,
+    "equivalentCopilotAiCredits": 5730.6
+  },
+  "azureMonitor": {
+    "modelRequests": {
+      "successful": 742,
+      "clientErrors": 1,
+      "successPercent": 99.87
+    },
+    "totalErrorsAcrossAccount": 4,
+    "serverErrorsAcrossAccount": 0,
+    "activityLog": {
+      "successfulDeploymentWrites": 1,
+      "failedDeploymentWrites": 1
+    },
+    "notes": [
+      "Azure Monitor and the local Copilot ledger differ slightly because Azure metrics lag and include platform availability probes.",
+      "Claude prompt usage is split across InputTokens, cacheReadInputTokens, and ephemeral5mInputTokens metrics; their total matched the three zero-AIC local Opus calls within 0.12%.",
+      "The one Claude HTTP 400 occurred before the /v1/messages interception fix; three post-fix Opus calls returned HTTP 200 via BYOK."
+    ]
+  },
+  "observedLatencyMs": {
+    "gpt-5.6-sol": { "average": 8329.1, "median": 6643.0, "maximum": 86222.0 },
+    "gpt-5.6-luna": { "average": 7738.7, "median": 5712.5, "maximum": 77388.0 },
+    "gpt-5.6-terra": { "average": 2489.5, "median": 2489.5, "maximum": 2957.0 },
+    "claude-opus-5": { "average": 1830.3, "median": 2296.0, "maximum": 2333.0 }
+  },
+  "conclusions": [
+    "The stable Lerna prompt_cache_key is working: 92.89% of mapped input tokens were cache reads.",
+    "Caching reduced estimated Azure list cost by about $210.94 during the window, mostly on Sol.",
+    "Azure Sol remained about 26.7% more expensive than equivalent Copilot list pricing after cache effects; Luna, Terra, and Opus used matching list rates.",
+    "Terra and Opus did not yet amortize their cache writes in this small sample.",
+    "The mapped BYOK rows recorded zero GitHub AI credits. Other Copilot model, subagent, compaction, and MAI activity in the same sessions remained billable.",
+    "No new request logging is needed; local usage rows plus Azure Monitor provide enough aggregate verification without retaining routing diagnostics."
+  ]
+}

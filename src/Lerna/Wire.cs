@@ -48,10 +48,28 @@ public static class ModelWire
     public static byte[] RewriteModelToDeployment(JsonObject body, ModelMapping mapping)
     {
         body["model"] = mapping.Deployment;
+        NormalizeResponsesInputItemIds(body, mapping);
         ApplyPromptCacheOptimization(body, mapping);
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream)) body.WriteTo(writer);
         return stream.ToArray();
+    }
+
+    private static void NormalizeResponsesInputItemIds(JsonObject body, ModelMapping mapping)
+    {
+        if (mapping.Wire != Responses || body["input"] is not JsonArray input) return;
+
+        // Copilot can attach host-private IDs longer than the public Responses API's 64-character
+        // limit when it replays prior message and tool items. They are optional metadata on full
+        // input items; call_id remains untouched because it carries the actual tool relationship.
+        // item_reference is different: its id is the reference itself, so do not silently alter it.
+        foreach (var item in input.OfType<JsonObject>())
+        {
+            if (item["type"]?.GetValue<string>() == "item_reference") continue;
+            if (item["id"]?.GetValueKind() == JsonValueKind.String
+                && item["id"]!.GetValue<string>().Length > 64)
+                item.Remove("id");
+        }
     }
 
     private static void ApplyPromptCacheOptimization(JsonObject body, ModelMapping mapping)

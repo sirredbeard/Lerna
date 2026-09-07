@@ -41,6 +41,20 @@ Check(!firstKey.Contains("foundry-a", StringComparison.Ordinal), "key exposed re
 Check(!firstKey.Contains("Stable repository", StringComparison.Ordinal), "key exposed prompt text");
 Check(first["prompt_cache_options"] is null, "Lerna must not select explicit mode without a breakpoint");
 
+var longHostId = new string('x', 428);
+var withHostIds = (JsonObject)baseBody.DeepClone();
+withHostIds["input"] = new JsonArray(
+    new JsonObject { ["type"] = "message", ["role"] = "user", ["content"] = "hello", ["id"] = longHostId },
+    new JsonObject { ["type"] = "function_call_output", ["call_id"] = longHostId, ["output"] = "done", ["id"] = longHostId },
+    new JsonObject { ["type"] = "message", ["role"] = "user", ["content"] = "short", ["id"] = new string('y', 64) },
+    new JsonObject { ["type"] = "item_reference", ["id"] = longHostId });
+var normalizedIds = Rewrite(withHostIds)["input"]!.AsArray();
+Check(normalizedIds[0]!["id"] is null, "oversized message item id was forwarded to Azure");
+Check(normalizedIds[1]!["id"] is null, "oversized tool output item id was forwarded to Azure");
+Check(normalizedIds[1]!["call_id"]!.GetValue<string>() == longHostId, "tool call relationship was altered");
+Check(normalizedIds[2]!["id"]!.GetValue<string>().Length == 64, "valid item id was removed");
+Check(normalizedIds[3]!["id"]!.GetValue<string>() == longHostId, "item reference id was silently altered");
+
 var changedUserInput = (JsonObject)baseBody.DeepClone();
 changedUserInput["input"]![0]!["content"] = "second task";
 var secondKey = Rewrite(changedUserInput)["prompt_cache_key"]!.GetValue<string>();

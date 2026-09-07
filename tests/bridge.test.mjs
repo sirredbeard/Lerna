@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { Bridge, requestSessionId } from "../integration/extensions/lerna/bridge.mjs";
+import { Bridge, requestSessionId, shouldBypassLerna } from "../integration/extensions/lerna/bridge.mjs";
 
 function bridge(t) {
   const value = new Bridge(process.execPath, [fileURLToPath(new URL("./fixtures/bridge-helper.mjs", import.meta.url))]);
@@ -19,6 +19,18 @@ test("planner attribution uses the exact native session header only when context
   }), {}, "ours"), undefined);
 });
 
+test("Copilot-only MAI inference bypasses Lerna completely", async () => {
+  const request = model => new Request("https://api.githubcopilot.com/responses", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model }),
+  });
+  assert.equal(await shouldBypassLerna(request("mai-code-1.1-flash")), true);
+  assert.equal(await shouldBypassLerna(request("mai-code-1-flash-picker")), true);
+  assert.equal(await shouldBypassLerna(request("gpt-5.6-sol")), false);
+  assert.equal(await shouldBypassLerna(new Request("https://api.githubcopilot.com/model/fusion", {
+    method: "POST", body: JSON.stringify({ model: "mai-code-1.1-flash" }),
+  })), false);
+});
+
 test("bridge reconstructs streamed responses and grants bounded credits", async t => {
   const value = bridge(t);
   const response = await value.forward(new Request("https://api.githubcopilot.com/responses"), {
@@ -26,6 +38,17 @@ test("bridge reconstructs streamed responses and grants bounded credits", async 
   });
   assert.equal(await response.text(), "hello");
   assert.equal((await value.invoke("status")).credits, 2);
+});
+
+test("forward timeout measures inactivity rather than total stream duration", async t => {
+  const value = new Bridge(process.execPath, [fileURLToPath(new URL("./fixtures/bridge-helper.mjs", import.meta.url))], {
+    timeouts: { forward: 1000 },
+  });
+  t.after(() => value.close());
+  const response = await value.forward(new Request("https://api.githubcopilot.com/responses?slow=1"), {
+    sessionId: "test", signal: new AbortController().signal,
+  });
+  assert.equal(await response.text(), "hello");
 });
 
 test("bridge sends cancellation to the helper", async t => {

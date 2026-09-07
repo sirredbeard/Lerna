@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Lerna;
 
-/// <summary>The exact six model IDs HydraFusion accepts in a fusion plan (Copilot CLI 1.0.83,
+/// <summary>The exact six model IDs HydraFusion accepts in a fusion plan (Copilot CLI,
 /// verified by replaying synthetic solo plans for the full CAPI catalog). Lerna treats this as
 /// a hard allowlist: nothing else may ever be used as a "models" mapping key, in a fusion plan
 /// rewrite, or routed anywhere.</summary>
@@ -134,6 +134,7 @@ public sealed record LernaAuth
 public sealed record LernaConfig
 {
     public bool Enabled { get; init; }
+    public bool Verbose { get; init; }
     public string? Model { get; init; }
     public string? Deployment { get; init; }
     public string? Endpoint { get; init; }
@@ -165,7 +166,7 @@ public sealed record LernaConfig
     /// "lerna.probe" shape. Always treated as disabled until re-saved via configure.</summary>
     public bool CompatibilityProbe { get; init; }
 
-    public static LernaConfig Empty { get; } = new() { Enabled = false };
+    public static LernaConfig Empty { get; } = new() { Enabled = false, Verbose = true };
 
     public string? EffectiveDeployment => string.IsNullOrEmpty(Deployment) ? Model : Deployment;
 
@@ -412,6 +413,7 @@ public static class SettingsFile
             return new LernaConfig
             {
                 Enabled = false,
+                Verbose = true,
                 CompatibilityProbe = true,
                 Model = probe["model"]?.GetValueKind() == JsonValueKind.String ? probe["model"]!.GetValue<string>() : null,
                 Deployment = probe["deployment"]?.GetValueKind() == JsonValueKind.String ? probe["deployment"]!.GetValue<string>() : null,
@@ -424,6 +426,9 @@ public static class SettingsFile
         return new LernaConfig
         {
             Enabled = lerna["enabled"]?.GetValueKind() == JsonValueKind.True,
+            // Verbose defaults on: routing visibility is the point of installing Lerna, so it is
+            // only off when the setting is explicitly false.
+            Verbose = lerna["verbose"]?.GetValueKind() != JsonValueKind.False,
             Model = lerna["model"]?.GetValueKind() == JsonValueKind.String ? lerna["model"]!.GetValue<string>() : null,
             Deployment = lerna["deployment"]?.GetValueKind() == JsonValueKind.String ? lerna["deployment"]!.GetValue<string>() : null,
             Endpoint = lerna["endpoint"]?.GetValueKind() == JsonValueKind.String ? lerna["endpoint"]!.GetValue<string>() : null,
@@ -476,6 +481,7 @@ public static class SettingsFile
     public static void WriteLerna(JsonObject root, LernaConfig config)
     {
         var lerna = new JsonObject { ["enabled"] = config.Enabled };
+        lerna["verbose"] = config.Verbose;
         if (config.Model is not null) lerna["model"] = config.Model;
         if (config.Deployment is not null) lerna["deployment"] = config.Deployment;
         if (config.Endpoint is not null) lerna["endpoint"] = config.Endpoint;

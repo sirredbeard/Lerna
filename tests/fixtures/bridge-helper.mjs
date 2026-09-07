@@ -8,19 +8,23 @@ createInterface({ input: process.stdin }).on("line", line => {
   const { id, op, requestId } = message;
   if (op === "status") send({ id, type: "result", value: { credits, cancellations } });
   if (op === "forward") {
-    requests.set(id, 0);
+    requests.set(id, { count: 0, delay: message.url.includes("slow=1") ? 700 : 0 });
     send({ id, type: "head", status: 200, headers: { "content-type": "text/plain" } });
   }
   if (op === "credit") {
     credits++;
-    const count = requests.get(requestId);
-    if (count === 0) {
-      requests.set(requestId, 1);
-      send({ id: requestId, type: "chunk", data: Buffer.from("hello").toString("base64") });
-    } else {
-      requests.delete(requestId);
-      send({ id: requestId, type: "end" });
-    }
+    const request = requests.get(requestId);
+    if (!request) return;
+    setTimeout(() => {
+      if (!requests.has(requestId)) return;
+      if (request.count === 0) {
+        request.count = 1;
+        send({ id: requestId, type: "chunk", data: Buffer.from("hello").toString("base64") });
+      } else {
+        requests.delete(requestId);
+        send({ id: requestId, type: "end" });
+      }
+    }, request.delay);
   }
   if (op === "cancel") { cancellations++; requests.delete(requestId); }
   if (op === "azure.login") {

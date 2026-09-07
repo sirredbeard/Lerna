@@ -3,6 +3,16 @@ import { createInterface } from "node:readline";
 
 const maxBody = 16 * 1024 * 1024;
 
+const copilotOnlyModels = new Set(["mai-code-1.1-flash", "mai-code-1-flash-picker"]);
+
+export async function shouldBypassLerna(request) {
+  if (new URL(request.url).pathname !== "/responses" || request.method !== "POST") return false;
+  try {
+    const body = await request.clone().json();
+    return copilotOnlyModels.has(body?.model);
+  } catch { return false; }
+}
+
 export function requestSessionId(request, context, attachedSessionId) {
   if (context.sessionId) return context.sessionId;
   // Copilot 1.0.83 omits the planner's session context, but supplies this header.
@@ -17,9 +27,11 @@ export class Bridge {
   #next = 0;
   #closed = false;
   #onResponse;
+  #timeouts;
 
-  constructor(binary, args = ["serve"], { onResponse } = {}) {
+  constructor(binary, args = ["serve"], { onResponse, timeouts } = {}) {
     this.#onResponse = onResponse;
+    this.#timeouts = { login: 16 * 60000, forward: 125000, default: 120000, ...timeouts };
     this.#child = spawn(binary, args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
     this.#child.stderr.resume();
     this.#child.stdin.on("error", () => this.#failAll("Lerna's input pipe closed"));
@@ -63,6 +75,15 @@ export class Bridge {
     }
   }
 
+  #refreshTimeout(id, pending) {
+    clearTimeout(pending.timer);
+    pending.timer = setTimeout(() => {
+      this.#send({ op: "cancel", requestId: id });
+      this.#finish(id, new Error("Lerna request timed out"));
+    }, pending.timeoutMs);
+    pending.timer.unref();
+  }
+
   #receive(message) {
     const pending = this.#pending.get(message.id);
     if (!pending) return;
@@ -75,6 +96,7 @@ export class Bridge {
         this.#finish(message.id);
       }, error => this.#finish(message.id, error));
     } else if (message.type === "login") {
+      this.#refreshTimeout(message.id, pending);
       pending.progress = pending.progress.then(() => {
         if (!pending.onProgress) throw new Error("Azure sign-in needs an interactive session");
         return pending.onProgress(message);
@@ -85,6 +107,7 @@ export class Bridge {
         this.#finish(message.id, error);
       });
     } else if (message.type === "head") {
+      this.#refreshTimeout(message.id, pending);
       this.#onResponse?.({ status: message.status, via: message.via, adaptedModel: message.adaptedModel });
       const noBody = [204, 205, 304].includes(message.status);
       pending.noBody = noBody;
@@ -99,6 +122,7 @@ export class Bridge {
       pending.resolve(new Response(body, { status: message.status, headers: message.headers }));
       if (noBody) this.#credit(message.id, pending);
     } else if (message.type === "chunk") {
+      this.#refreshTimeout(message.id, pending);
       pending.credit = false;
       if (pending.noBody) this.#credit(message.id, pending);
       else pending.controller.enqueue(Buffer.from(message.data, "base64"));
@@ -119,15 +143,14 @@ export class Bridge {
         this.#send({ op: "cancel", requestId: id });
         this.#finish(id, new Error("Lerna request cancelled"));
       };
-      const timer = setTimeout(() => {
-        this.#send({ op: "cancel", requestId: id });
-        this.#finish(id, new Error("Lerna request timed out"));
-      }, op === "azure.login" ? 16 * 60000 : op === "forward" ? 125000 : 120000);
-      timer.unref();
-      this.#pending.set(id, {
-        resolve, reject, timer, credit: false, onProgress, progress: Promise.resolve(),
+      const timeoutMs = op === "azure.login" ? this.#timeouts.login
+        : op === "forward" ? this.#timeouts.forward : this.#timeouts.default;
+      const pending = {
+        resolve, reject, timer: undefined, timeoutMs, credit: false, onProgress, progress: Promise.resolve(),
         cleanup: () => signal?.removeEventListener("abort", abort),
-      });
+      };
+      this.#pending.set(id, pending);
+      this.#refreshTimeout(id, pending);
       signal?.addEventListener("abort", abort, { once: true });
       this.#send({ id, op, ...data });
     });

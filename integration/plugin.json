@@ -1,7 +1,7 @@
 {
   "name": "lerna",
   "version": "1.0.83",
-  "description": "Copilot integration for the Lerna .NET companion. Unofficial HydraFusion BYOK support.",
+  "description": "Manage HydraFusion verbosity and routing",
   "author": { "name": "Hayden Barnes", "url": "https://github.com/sirredbeard" },
   "repository": "https://github.com/sirredbeard/Lerna",
   "license": "MIT",

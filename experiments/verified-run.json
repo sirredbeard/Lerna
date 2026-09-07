@@ -1,0 +1,65 @@
+{
+  "date": "2026-09-06",
+  "copilotCliVersion": "1.0.83",
+  "nodeVersion": "22.22.2",
+  "platform": "Azure Linux 4, x86_64",
+  "host": "Isolated native Copilot runtime started through the bundled SDK",
+  "experimentalFeatureFlags": {
+    "HYDRAFUSION": true,
+    "HYDRAFUSION_ROLLOUT": true
+  },
+  "planner": {
+    "method": "POST",
+    "path": "/model/fusion",
+    "requestFields": ["prompt", "fusion_mode"],
+    "fusionMode": "hydrafusion-max",
+    "planVersion": "1",
+    "fusionPattern": "solo",
+    "originalGenerationModel": "gpt-5.6-sol",
+    "adaptedGenerationModel": "gpt-5.6-terra"
+  },
+  "inference": {
+    "provider": "Azure AI Foundry",
+    "model": "gpt-5.6-terra",
+    "deployedModelVersion": "2026-07-09",
+    "path": "/openai/v1/responses",
+    "status": 200,
+    "outboundHeaderNames": ["api-key", "content-type"]
+  },
+  "observedEvents": [
+    "session.fusion_route_started",
+    "session.fusion_resolved",
+    "assistant.fusion_phase_started",
+    "assistant.fusion_phase_completed",
+    "session.fusion_commit_started",
+    "session.fusion_completed"
+  ],
+  "checks": {
+    "nativeHydraOrchestration": true,
+    "realAzureInference": true,
+    "providerCredentialBoundary": true,
+    "toolsAvailable": false,
+    "sampleTaskWroteWorkspaceFiles": false,
+    "binaryPatched": false,
+    "tlsCertificateInstalled": false
+  },
+  "negativeExperiments": [
+    {
+      "experiment": "Register a provider-qualified model, then reference it in a Hydra plan",
+      "result": "Rejected as outside the selected policy universe"
+    },
+    {
+      "experiment": "Also append the provider-qualified model to the CAPI /models response",
+      "result": "Selectable in the client, still rejected by Hydra policy validation"
+    }
+  ],
+  "notVerified": [
+    "Arbitrary new Hydra model IDs",
+    "Cascade and critique plans",
+    "Multi-turn server-side state",
+    "Streaming and WebSocket transport",
+    "Cancellation and billing attribution",
+    "Attachment to an existing interactive CLI session",
+    "Windows"
+  ]
+}

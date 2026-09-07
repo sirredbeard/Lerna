@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.*
+settings.json
+secrets*.json
+*.log
+*.key
+*.pem
+*.pfx
+*.trace
+results/
+local/
+bin/
+obj/
+out/
+artifacts/

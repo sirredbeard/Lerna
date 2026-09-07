@@ -1,0 +1,13 @@
+{
+  "name": "lerna",
+  "owner": { "name": "Hayden Barnes" },
+  "metadata": { "description": "The Lerna Copilot integration.", "version": "1.0.83" },
+  "plugins": [
+    {
+      "name": "lerna",
+      "description": "Configure the Lerna companion for unofficial HydraFusion BYOK support.",
+      "version": "1.0.83",
+      "source": "integration"
+    }
+  ]
+}

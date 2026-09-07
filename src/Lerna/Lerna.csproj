@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>Lerna</RootNamespace>
+    <AssemblyName>lerna</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
+    <Version>1.0.83</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EventSourceSupport>false</EventSourceSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <AutoreleasePoolSupport>false</AutoreleasePoolSupport>
+    <DebugType>portable</DebugType>
+
+    <!-- Surfaces IL2026/IL3050/etc. trim+AOT analyzer warnings during ordinary `dotnet build`,
+         not just at `dotnet publish -p:PublishAot=true` time, so an AOT-breaking change is
+         caught at the fast inner-loop build rather than at publish. -->
+    <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">true</IsAotCompatible>
+
+    <!-- Fast, non AOT dotnet build/run for iteration and tests.
+         Publish with: dotnet publish -c Release -r RID -p:PublishAot=true -p:SelfContained=true
+         for the shipped native binary. -->
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+    <SelfContained Condition="'$(PublishAot)' == 'true'">true</SelfContained>
+    <StripSymbols Condition="'$(PublishAot)' == 'true'">true</StripSymbols>
+    <InvariantGlobalization Condition="'$(PublishAot)' == 'true'">true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

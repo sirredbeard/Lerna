@@ -290,10 +290,10 @@ test("reports confirmed Azure routing without successful HTTP status noise", asy
   await reporter.reportResponse({ status: 200, via: "copilot", adaptedModel: "mai-code-1.1-flash" });
 
   assert.deepEqual(logs, [{
-    message: "⎇ **Lerna · Route** Opus 5 → Azure Foundry",
+    message: "⎇ **Lerna · Route** Opus 5 → Microsoft Foundry",
     options: { ephemeral: false, level: "info" },
   }, {
-    message: "⎇ **Lerna · Route** Sol → Azure Foundry · HTTP 429",
+    message: "⎇ **Lerna · Route** Sol → Microsoft Foundry · HTTP 429",
     options: { ephemeral: false, level: "warning" },
   }]);
 });

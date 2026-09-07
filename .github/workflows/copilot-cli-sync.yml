@@ -37,7 +37,7 @@ jobs:
           gh workflow run build.yml --ref "${{ github.ref_name || 'main' }}"
           echo "No model drift detected; refresh is in progress."
 
-      - name: Validate Azure Foundry model catalog when drift is detected
+      - name: Validate Microsoft Foundry model catalog when drift is detected
         if: steps.check.outputs.model_delta == 'changed'
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

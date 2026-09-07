@@ -92,6 +92,8 @@ Hydra picks the model, not you. Lerna only gets to answer for a model once Hydra
 
 Billing attribution is unverified. I would assume a routed turn bills to your Azure subscription, however I have not confirmed what, if anything, is still counted on the Copilot side.
 
+The cost comparison, prompt-cache behavior, plugin boundaries, and Entra flow are documented in [RESEARCH.md](RESEARCH.md).
+
 ## License
 
 [MIT](LICENSE).

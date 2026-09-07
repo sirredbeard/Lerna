@@ -58,46 +58,48 @@ public static class ModelWire
     {
         if (mapping.Wire != Responses || body["prompt_cache_key"] is not null) return;
 
-        var scope = !string.IsNullOrWhiteSpace(mapping.ResourceName)
-            ? mapping.ResourceName
-            : string.IsNullOrWhiteSpace(mapping.Endpoint)
-                ? "lerna"
-                : mapping.Endpoint.TrimEnd('/');
+        var stableContext = BuildStablePromptContext(body);
+        if (string.IsNullOrEmpty(stableContext)) return;
 
-        var seed = BuildPromptCacheSeed(body);
-        if (string.IsNullOrEmpty(seed)) return;
-
+        // Azure/OpenAI cap prompt_cache_key at 64 characters. Hash the complete scope so the key
+        // contains no resource, identity, repository, tool, or prompt text while still changing
+        // when the Azure resource, deployment, safety identity, or stable prompt prefix changes.
+        var seed = string.Join("\n", mapping.ResourceId, mapping.Deployment,
+            body["safety_identifier"]?.ToJsonString() ?? "", stableContext);
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(seed))).ToLowerInvariant();
-        body["prompt_cache_key"] = $"lerna:{scope}:{mapping.Deployment}:{hash}";
+        body["prompt_cache_key"] = "lerna:" + hash[..58];
 
-        if (body["prompt_cache_options"] is null)
-        {
-            body["prompt_cache_options"] = new JsonObject
-            {
-                ["mode"] = "explicit",
-                ["ttl"] = "30m",
-            };
-        }
+        // Do not set prompt_cache_options here. Azure's default implicit mode writes a breakpoint
+        // at the latest message. Explicit mode without an explicit content breakpoint disables
+        // caching entirely. Caller-provided options and breakpoints are preserved by serialization.
     }
 
-    private static string BuildPromptCacheSeed(JsonObject body)
+    private static string BuildStablePromptContext(JsonObject body)
     {
         var parts = new List<string>();
 
-        foreach (var key in new[] { "instructions", "system", "tools", "tool_choice", "parallel_tool_calls", "response_format", "reasoning", "temperature", "top_p" })
+        foreach (var key in new[] { "instructions", "system", "tools", "tool_choice", "parallel_tool_calls", "response_format", "reasoning" })
         {
-            if (body[key] is JsonNode node && node is not null)
+            if (body[key] is JsonNode node)
             {
                 var json = node.ToJsonString();
-                if (!string.IsNullOrWhiteSpace(json)) parts.Add(json);
+                if (!string.IsNullOrWhiteSpace(json)) parts.Add($"{key}:{json}");
             }
         }
 
-        if (body["input"] is JsonArray input && input.Count > 0)
+        // Responses input is conversation state. Only leading system/developer messages belong
+        // in the stable cache namespace; user, assistant, and tool items change as the turn grows.
+        if (body["input"] is JsonArray input)
         {
-            var prefix = new JsonArray();
-            foreach (var item in input.Take(3)) prefix.Add(item?.DeepClone());
-            if (prefix.Count > 0) parts.Add(prefix.ToJsonString());
+            foreach (var item in input)
+            {
+                if (item is not JsonObject message) break;
+                var role = message["role"]?.GetValueKind() == JsonValueKind.String
+                    ? message["role"]!.GetValue<string>()
+                    : null;
+                if (role is not ("system" or "developer")) break;
+                parts.Add($"input:{message.ToJsonString()}");
+            }
         }
 
         return string.Join("\n", parts);

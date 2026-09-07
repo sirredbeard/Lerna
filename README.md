@@ -2,13 +2,15 @@
 
 *Named after the Hydra of Lerna.*
 
-Plugin for GitHub Copilot CLI that gives [HydraFusion](https://github.blog/ai-and-ml/github-copilot/project-hydrafusion-frontier-quality-via-multi-model-orchestration/) more verbosity and can re-route model calls (currently to Azure Foundry).
+<img width="1103" height="761" alt="Screenshot From 2026-09-07 13-27-31" src="https://github.com/user-attachments/assets/19438bda-46c9-4150-abc6-6b9e4e9561bb" />
 
-HydraFusion is an experimental AI orchestrator that dispatches work to various GitHub Copilot models. Lerna re-routes those model calls to equivalent model endpoints deployed on Azure Foundry instead of GitHub Copilot.
+Lerna is a plugin for GitHub Copilot CLI that adds more detail to [HydraFusion](https://github.blog/ai-and-ml/github-copilot/project-hydrafusion-frontier-quality-via-multi-model-orchestration/) and can route selected model calls to Azure AI Foundry.
 
-Lerna cannot currently add additional models to HydraFusion. HydraFusion appears to accept six model IDs and rejects everything else, so the most it can do is serve the models HydraFusion already knows about.
+HydraFusion is an experimental orchestrator. It's planner chooses from a fixed set of GitHub Copilot models, then Lerna can answer a chosen model call with your deployment of that model on Azure.
 
-Four of the six have same-name equivalents on Azure Foundry:
+Lerna cannot add models to HydraFusion. HydraFusion currently accepts six model IDs and rejects everything else, so Lerna can only route models HydraFusion already knows about.
+
+Four of the six have equivalents on Azure AI Foundry:
 
 | HydraFusion model | Azure AI Foundry | Wire format |
 | --- | --- | --- |
@@ -19,15 +21,25 @@ Four of the six have same-name equivalents on Azure Foundry:
 | `mai-code-1.1-flash` | no equivalent | stays on Copilot |
 | `mai-code-1-flash-picker` | no equivalent | stays on Copilot |
 
-Lerna never relabels one model as another. A model is either served by your own deployment of that same model, or it is left on GitHub Copilot. The two MAI models bypass Lerna's forwarding bridge entirely and use Copilot's native request path.
+Lerna does not change HydraFusion's chosen model ID. It looks up that exact ID in your settings and forwards the request to the deployment you mapped, so you are responsible for mapping it to the same underlying model. The two MAI models cannot be mapped and stay on Copilot's native request path.
 
-Lerna versions follow the Copilot CLI version they support.
+Each Lerna release tracks the Copilot CLI build it supports.
+
+## Contents
+
+- [Requirements](#requirements) - What you need before installing Lerna.
+- [Install](#install) - Install the plugin from Copilot CLI.
+- [Use in Copilot CLI](#use-in-copilot-cli) - Manage routing and verbose output.
+- [Configure](#configure) - Add Azure identity and model mappings.
+- [Fresh Azure AI Foundry setup](#fresh-azure-ai-foundry-setup) - Build the Azure side from scratch.
+- [Troubleshooting](#troubleshooting) - Separate Lerna failures from HydraFusion failures.
+- [Notes](#notes) - Routing behavior and deeper research.
 
 ## Requirements
 
-- A supported GitHub Copilot CLI build with experimental features enabled. Run `copilot --version` against the process you are about to start; the launcher can keep more than one CLI build in its per-user cache.
-- An Azure AI Foundry resource, and permission to read it's deployments and run inference against them.
-- Azure deployments named for the HydraFusion models you want to serve.
+- A supported GitHub Copilot CLI build with experimental features enabled. Run `copilot --version` against the process you are about to start; the launcher can keep more than one CLI build in it's per-user cache.
+- An Azure AI Foundry resource and `Cognitive Services User` access to run inference.
+- One Azure deployment for each HydraFusion model you want Lerna to serve.
 
 ## Install
 
@@ -48,18 +60,20 @@ When Lerna starts, it checks whether experimental features are enabled. If they 
 - `/lerna` - Open the routing menu.
 - `/lerna status` - Show whether routing is enabled, which HydraFusion models are mapped, and whether verbose diagnostics are on.
 - `/lerna enable` / `/lerna disable` - Start or stop routing without deleting the mappings.
-- `/lerna verbose on` / `/lerna verbose off` - Show or hide safe HydraFusion routing, phase, tool, subagent, and skill activity.
+- `/lerna verbose on` / `/lerna verbose off` - Show or hide HydraFusion routing, phase, tool, subagent, and skill activity.
 - `/lerna login` / `/lerna logout` - Refresh or remove the cached Azure sign-in.
 
 Verbose mode is on by default (it is the main reason to install Lerna); turn it off with `/lerna verbose off`. It does not require Azure, a route mapping, or routing to be enabled. You can install Lerna only for the extra HydraFusion activity display and leave `/lerna disable` in place.
 
-Route, phase-start, and tool-operation messages are emitted immediately and remain in the timeline while verbose mode is on. Model reasoning deltas are shown live during an active HydraFusion phase, with the completed reasoning retained when the SDK supplies it. A successful Azure response appears as `Lerna · Route Opus 5 → Azure Foundry`; HTTP status is only included for a failed response. Tool activity shows the useful bit Copilot shows, including file names, search expressions, shell and git commands, URLs, and MCP queries, without repeating `Search Search Subagent` for every operation. Partial tool output and provider response bodies are not copied into the timeline, and obvious credential values are still redacted.
+Route, phase-start, and tool-operation messages appear immediately and remain in the timeline while verbose mode is on. Model reasoning is shown live during an active HydraFusion phase, with the completed reasoning retained when the SDK supplies it. A successful Azure response appears as `Lerna · Route Opus 5 → Azure Foundry`; HTTP status is only included for a failed response.
+
+Tool activity includes useful file names, search expressions, shell and git commands, URLs, and MCP queries. Lerna hides detail-free calls, duplicate searches, and prompt-like text accidentally appended to a search expression, and shows no more than four unique operations for each subagent. Completion totals still count all operations. Partial tool output and provider response bodies are not copied into the timeline, and obvious credential values are redacted.
 
 ## Configure
 
-Authentication uses Microsoft Entra tokens. Run `/lerna login` inside Copilot CLI, or `lerna login` from a shell, then sign in with the device code. The token is cached beside your settings file, owner-readable only, and refreshed automatically.
+Authentication uses Microsoft Entra tokens. Run `/lerna login` inside Copilot CLI, or run `lerna login` if you downloaded the native binary, then sign in with the device code. Lerna stores the refresh token and short-lived access token in `lerna-auth.json` beside Copilot's settings file, separate from `settings.json`, and refreshes the access token automatically.
 
-Lerna stores only the mapping from Hydra model to Azure deployment, in Copilot's own settings file. There is no API key to paste and no secrets repo to point at. `endpoint` is the bare resource base, and Lerna appends the right path for the wire format at request time.
+Lerna stores routing settings and nonsecret Azure identifiers in Copilot's settings file. There is no API key to paste and no secrets repo to point at. `endpoint` is the bare resource base, and Lerna appends the path required by each wire format at request time.
 
 ```json
 {
@@ -91,9 +105,9 @@ Lerna stores only the mapping from Hydra model to Azure deployment, in Copilot's
 }
 ```
 
-`clientId` is an Entra app registration you own. It needs to be a public client with delegated `user_impersonation` on Azure Cognitive Services.
+`clientId` is an Entra app registration you own. It needs to be a public client with delegated `user_impersonation` on Azure Cognitive Services. `tenantId` defaults to `organizations` when omitted. `subscriptionId` is retained as nonsecret configuration context; token requests use `tenantId` and `clientId`.
 
-The key must be one of the six HydraFusion model IDs, and the Azure deployment it points at has to be that same model.
+Each `models` key must be one of HydraFusion's six accepted model IDs. Lerna rejects the two MAI IDs because they have no Azure equivalent. Lerna validates the mapping shape, but it does not query Azure Resource Manager during inference to prove which model backs a deployment. Map each key to a deployment of that same model.
 
 ## Fresh Azure AI Foundry setup
 
@@ -127,7 +141,7 @@ az cognitiveservices model list --location $location `
   --output table
 ```
 
-Create deployments one at a time using the version and SKU Azure returned. Keep `--deployment-name` identical to `--model-name`; Lerna deliberately refuses model relabeling.
+Create deployments one at a time using the version and SKU Azure returned. I recommend keeping `--deployment-name` identical to `--model-name`; Lerna uses the deployment name from your mapping and does not inspect the backing model during inference.
 
 ```powershell
 $modelName = "gpt-5.6-sol"

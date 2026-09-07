@@ -26,6 +26,10 @@ jobs:
             rid: win-x64
             executable: lerna.exe
             asset: lerna-win-x64.exe
+          - os: windows-11-arm
+            rid: win-arm64
+            executable: lerna.exe
+            asset: lerna-win-arm64.exe
           - os: macos-15
             rid: osx-arm64
             executable: lerna

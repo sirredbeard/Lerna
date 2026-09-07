@@ -42,7 +42,7 @@ test("bridge reconstructs streamed responses and grants bounded credits", async 
 
 test("forward timeout measures inactivity rather than total stream duration", async t => {
   const value = new Bridge(process.execPath, [fileURLToPath(new URL("./fixtures/bridge-helper.mjs", import.meta.url))], {
-    timeouts: { forward: 1000 },
+    timeouts: { forward: 2000 },
   });
   t.after(() => value.close());
   const response = await value.forward(new Request("https://api.githubcopilot.com/responses?slow=1"), {

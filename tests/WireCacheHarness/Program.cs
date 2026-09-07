@@ -55,6 +55,30 @@ Check(normalizedIds[1]!["call_id"]!.GetValue<string>() == longHostId, "tool call
 Check(normalizedIds[2]!["id"]!.GetValue<string>().Length == 64, "valid item id was removed");
 Check(normalizedIds[3]!["id"]!.GetValue<string>() == longHostId, "item reference id was silently altered");
 
+var withEncryptedReasoning = (JsonObject)baseBody.DeepClone();
+withEncryptedReasoning["input"] = new JsonArray(
+    new JsonObject
+    {
+        ["type"] = "reasoning",
+        ["id"] = Convert.ToBase64String(new byte[315]),
+        ["encrypted_content"] = "copilot-bound-ciphertext",
+        ["summary"] = new JsonArray(),
+    },
+    new JsonObject
+    {
+        ["type"] = "reasoning",
+        ["id"] = "rs_azure_reasoning_item",
+        ["encrypted_content"] = "azure-bound-ciphertext",
+        ["summary"] = new JsonArray(),
+    },
+    new JsonObject { ["type"] = "message", ["role"] = "user", ["content"] = "continue" });
+var normalizedReasoning = Rewrite(withEncryptedReasoning)["input"]!.AsArray();
+Check(normalizedReasoning.Count == 2, "foreign encrypted reasoning item was forwarded to Azure");
+Check(normalizedReasoning[0]!["id"]!.GetValue<string>() == "rs_azure_reasoning_item",
+    "Azure reasoning continuation item was removed");
+Check(normalizedReasoning[0]!["encrypted_content"]!.GetValue<string>() == "azure-bound-ciphertext",
+    "Azure reasoning continuation content was altered");
+
 var changedUserInput = (JsonObject)baseBody.DeepClone();
 changedUserInput["input"]![0]!["content"] = "second task";
 var secondKey = Rewrite(changedUserInput)["prompt_cache_key"]!.GetValue<string>();

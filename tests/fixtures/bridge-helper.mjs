@@ -8,7 +8,7 @@ createInterface({ input: process.stdin }).on("line", line => {
   const { id, op, requestId } = message;
   if (op === "status") send({ id, type: "result", value: { credits, cancellations } });
   if (op === "forward") {
-    requests.set(id, { count: 0, delay: message.url.includes("slow=1") ? 700 : 0 });
+    requests.set(id, { count: 0, delay: message.url.includes("slow=1") ? 1200 : 0 });
     send({ id, type: "head", status: 200, headers: { "content-type": "text/plain" } });
   }
   if (op === "credit") {

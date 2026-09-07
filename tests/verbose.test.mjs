@@ -53,13 +53,13 @@ test("reports HydraFusion routing, phase progress, and persistent completions", 
     durationMs: 2500, usage: { inputTokens: 1200, outputTokens: 345, cachedTokens: 800, totalNanoAiu: 5_267_100_000 },
   }));
 
-  assert.match(logs[0].message, /primary Sol, reviewer Opus 5/);
+  assert.match(logs[0].message, /^⎇ \*\*Lerna · Route:\*\* Review, primary Sol, reviewer Opus 5\./);
   assert.equal(logs[0].options.ephemeral, false);
   assert.match(logs[1].message, /started solver \(implementation\) on Sol/);
   assert.equal(logs[1].options.ephemeral, false);
   assert.match(logs[2].message, /Sol is streaming, 4 KiB received/);
   assert.match(logs[3].message, /1\.2K input, 345 output, 800 cached, 5\.27 AIC/);
-  assert.match(logs[3].message, /^⎇ \*\*Lerna\*\* /);
+  assert.match(logs[3].message, /^⎇ \*\*Lerna · Phase\*\* /);
   assert.equal(logs[3].options.ephemeral, false);
 });
 
@@ -87,8 +87,19 @@ test("reports the safe reason for a failed Hydra phase", async () => {
     degradedToPhaseId: "repair",
   }));
 
+  assert.match(logs[0].message, /^⎇ \*\*Lerna · Phase\*\* /);
   assert.match(logs[0].message, /mai-code-1\.1-flash failed after 1\.7s \(HTTP 400\); continuing with a fallback phase/);
   assert.equal(logs[0].options.level, "warning");
+});
+
+test("reports the final HydraFusion completion under the Route label like the rest of the route lifecycle", async () => {
+  const { logs, reporter } = fixture();
+  await reporter.handle(event("session.fusion_completed", {
+    durationMs: 140_200, finalSourceModel: "gpt-5.6-luna", usage: { totalNanoAiu: 800_000_000 },
+  }));
+
+  assert.equal(logs[0].message, "⎇ **Lerna · Route** HydraFusion completed in 140.2s using Luna as the final source, 0.80 AIC.");
+  assert.equal(logs[0].options.ephemeral, false);
 });
 
 test("reports root Hydra tools immediately", async () => {

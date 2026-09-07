@@ -194,10 +194,11 @@ function phaseText(data) {
 
 function routeText(data) {
   const pattern = clean(data.pattern || "route", 40);
+  const capitalizedPattern = pattern.charAt(0).toUpperCase() + pattern.slice(1);
   const primary = modelText(data.primaryModel);
   const secondary = data.secondaryModel ? `, reviewer ${modelText(data.secondaryModel)}` : "";
   const fallback = data.fallbackModel ? `, fallback ${modelText(data.fallbackModel)}` : "";
-  return `HydraFusion route: ${pattern}, primary ${primary}${secondary}${fallback}.`;
+  return `${capitalizedPattern}, primary ${primary}${secondary}${fallback}.`;
 }
 
 export function createVerboseReporter({
@@ -255,7 +256,7 @@ export function createVerboseReporter({
         break;
       case "session.fusion_resolved":
         activeFusion = true;
-        await emit(routeText(data), { ephemeral: false, label: "Route" });
+        await emit(routeText(data), { ephemeral: false, label: "Route:" });
         break;
       case "session.fusion_route_failed":
         activeFusion = false;
@@ -292,14 +293,14 @@ export function createVerboseReporter({
         const usage = data.usage || {};
         const cache = Number(usage.cachedTokens || 0) ? `, ${tokensText(usage.cachedTokens)} cached` : "";
         const aiCredits = aiCreditText(usage);
-        await emit(`HydraFusion completed ${phaseText(data)} on ${modelText(data.model)} in ${durationText(data.durationMs)}: ${tokensText(usage.inputTokens)} input, ${tokensText(usage.outputTokens)} output${cache}${aiCredits ? `, ${aiCredits}` : ""}.`, { ephemeral: false });
+        await emit(`HydraFusion completed ${phaseText(data)} on ${modelText(data.model)} in ${durationText(data.durationMs)}: ${tokensText(usage.inputTokens)} input, ${tokensText(usage.outputTokens)} output${cache}${aiCredits ? `, ${aiCredits}` : ""}.`, { ephemeral: false, label: "Phase" });
         if (!activePhase?.id || activePhase.id === data.phaseId) activePhase = null;
         reasoning = "";
         break;
       }
       case "assistant.fusion_phase_failed": {
         const detail = phaseFailureDetail(data);
-        await emit(`HydraFusion ${phaseText(data)} on ${modelText(data.model)} failed after ${durationText(data.durationMs)}${detail ? ` (${detail})` : ""}${data.degradedToPhaseId ? "; continuing with a fallback phase" : ""}.`, { ephemeral: false, level: "warning" });
+        await emit(`HydraFusion ${phaseText(data)} on ${modelText(data.model)} failed after ${durationText(data.durationMs)}${detail ? ` (${detail})` : ""}${data.degradedToPhaseId ? "; continuing with a fallback phase" : ""}.`, { ephemeral: false, level: "warning", label: "Phase" });
         if (!activePhase?.id || activePhase.id === data.phaseId) activePhase = null;
         reasoning = "";
         break;
@@ -309,7 +310,7 @@ export function createVerboseReporter({
         activePhase = null;
         reasoning = "";
         const aiCredits = aiCreditText(data.usage);
-        await emit(`HydraFusion completed in ${durationText(data.durationMs)}${data.finalSourceModel ? ` using ${modelText(data.finalSourceModel)} as the final source` : ""}${aiCredits ? `, ${aiCredits}` : ""}.`, { ephemeral: false });
+        await emit(`HydraFusion completed in ${durationText(data.durationMs)}${data.finalSourceModel ? ` using ${modelText(data.finalSourceModel)} as the final source` : ""}${aiCredits ? `, ${aiCredits}` : ""}.`, { ephemeral: false, label: "Route" });
         break;
       }
       case "tool.execution_start": {

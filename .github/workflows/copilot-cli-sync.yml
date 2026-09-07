@@ -1,0 +1,92 @@
+name: Copilot CLI compatibility sync
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    outputs:
+      latest_version: ${{ steps.check.outputs.latest_version }}
+      latest_tag: ${{ steps.check.outputs.latest_tag }}
+      model_delta: ${{ steps.check.outputs.model_delta }}
+      latest_release_url: ${{ steps.check.outputs.latest_release_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check GitHub Copilot CLI release and model drift
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/scripts/check-copilot-cli-sync.mjs
+
+      - name: Trigger release rebuild when no model drift is detected
+        if: steps.check.outputs.model_delta == 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build.yml --ref "${{ github.ref_name || 'main' }}"
+          echo "No model drift detected; refresh is in progress."
+
+      - name: Validate Azure Foundry model catalog when drift is detected
+        if: steps.check.outputs.model_delta == 'changed'
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          if [ -n "${AZURE_TENANT_ID:-}" ] && [ -n "${AZURE_CLIENT_ID:-}" ] && [ -n "${AZURE_CLIENT_SECRET:-}" ] && [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
+            az login --service-principal --username "$AZURE_CLIENT_ID" --password "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
+            az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+            az cognitiveservices model list \
+              --location eastus2 \
+              --query "[?name=='gpt-5.6-sol' || name=='gpt-5.6-luna' || name=='gpt-5.6-terra' || name=='claude-opus-5'].{model:name,format:format,version:version,skus:skus[].name}" \
+              --output table
+          else
+            echo "Azure read-only credentials are not configured; skip the live catalog check."
+          fi
+
+      - name: Prepare a compatibility PR when drift is detected
+        if: steps.check.outputs.model_delta == 'changed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST_TAG: ${{ steps.check.outputs.latest_tag }}
+          LATEST_VERSION: ${{ steps.check.outputs.latest_version }}
+          REVIEWER: sirredbeard
+        run: |
+          set -euo pipefail
+          branch="chore/copilot-cli-sync-${LATEST_VERSION}"
+          git checkout -b "$branch" || git checkout "$branch"
+          cat > .github/copilot-cli-drift.json <<EOF
+          {
+            "copilotCliRelease": "${LATEST_TAG}",
+            "latestVersion": "${LATEST_VERSION}",
+            "releaseUrl": "${{ steps.check.outputs.latest_release_url }}",
+            "hydraFusionModels": [
+              "claude-opus-5",
+              "gpt-5.6-luna",
+              "gpt-5.6-sol",
+              "gpt-5.6-terra",
+              "mai-code-1.1-flash",
+              "mai-code-1-flash-picker"
+            ]
+          }
+          EOF
+          git add .github/copilot-cli-drift.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "chore: record Copilot CLI model drift for ${LATEST_TAG}" || echo "Nothing to commit."
+          git push --set-upstream origin "$branch" || true
+          gh pr create \
+            --base "${{ github.ref_name || 'main' }}" \
+            --head "$branch" \
+            --title "chore: review Copilot CLI ${LATEST_TAG} HydraFusion compatibility" \
+            --body-file .github/templates/copilot-cli-sync-pr.md \
+            --reviewer "$REVIEWER" || true

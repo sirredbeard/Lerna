@@ -500,6 +500,28 @@ A direct Azure check confirmed the boundary: the same minimal Luna request retur
 
 The fixed native binary was then used in a new HydraFusion critique run. Luna and Terra both returned HTTP 200, both phases completed, and Luna remained the final source.
 
+## September 7 routing optimization audit
+
+A follow-up audit after the original 12-hour sample checked the active local configuration, current extension logs, the Copilot usage ledger, Azure Monitor, ARM deployment properties, and Microsoft's current model-router guidance.
+
+The effective policy is intentionally selective:
+
+| Hydra model | Route | Reason |
+| --- | --- | --- |
+| `gpt-5.6-sol` | Copilot | Azure remained about 26.7% more expensive at observed list rates. |
+| `gpt-5.6-luna` | Foundry | Matching list rate, zero Copilot AI-unit charge for mapped calls, and 87.37% cache reads over the expanded sample. |
+| `gpt-5.6-terra` | Foundry | Matching list rate and low latency; sparse traffic is too small to justify a special cache policy. |
+| `claude-opus-5` | Foundry | Matching list rate and 95.22% cache reads after 56 mapped calls. |
+| MAI models | Copilot | No same-model Foundry equivalent. |
+
+The local settings contain exactly the three Foundry mappings above and the installed extension matches the workspace build. Recent extension processes report `interception enabled` and terminate normally. Historical registration failures came from in-process restart/resume attempts, not Azure capacity or a shared Lerna service.
+
+Azure Monitor showed no HTTP 429 responses. Peak observed mapped traffic was 11 Sol, 10 Luna, 5 Opus, and 2 Terra requests in one minute; the active deployments therefore have ample baseline capacity. Dynamic quota was considered, but the ARM API rejects `dynamicThrottlingEnabled` for these `GlobalStandard` deployments. No deployment capacity change is warranted: Global Standard capacity is a rate-limit allocation rather than idle reserved-throughput billing, and reducing it would only shrink burst headroom.
+
+Microsoft's Foundry model router is also not inserted beneath HydraFusion. Its purpose is to choose a potentially different underlying model per request. Lerna's safety and compatibility contract is the opposite: serve the exact model HydraFusion selected, on the matching native wire. A second router would obscure model identity, make cache reuse depend on repeated selection of the same backing model, and duplicate routing work. Direct deployments are the documented choice when every request must use a specific model.
+
+The cache policy remains unchanged. Post-audit mapped calls reached 97.85% cache reads for Sol before its mapping was removed, 95.85% for Opus, and 75.04% for Luna. Traffic stayed below Microsoft's approximate 15-request-per-minute threshold for one prefix/key combination, so sharding the stable cache key would reduce reuse rather than improve it. Terra's four post-audit calls were all misses, but the volume and dollar difference are too small to justify model-specific request rewriting.
+
 ## Sources
 
 - [GitHub Copilot models and pricing](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing)
@@ -511,6 +533,9 @@ The fixed native binary was then used in a new HydraFusion critique run. Luna an
 - Copilot CLI bundled SDK contracts: `copilot-sdk/session.d.ts`, `copilot-sdk/types.d.ts`, and `copilot-sdk/generated/session-events.d.ts`
 - [Azure OpenAI pricing](https://azure.microsoft.com/en-us/pricing/details/azure-openai/)
 - [Microsoft Foundry prompt caching](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/prompt-caching)
+- [Microsoft Foundry model router concepts](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-router)
+- [How Microsoft Foundry model router works](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-router-how-it-works)
+- [Azure OpenAI dynamic quota (classic)](https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/dynamic-quota)
 - [Anthropic model and prompt-cache pricing](https://platform.claude.com/docs/en/about-claude/pricing)
 - [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages)
 - [Anthropic API versioning](https://platform.claude.com/docs/en/api/versioning)

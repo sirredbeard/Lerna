@@ -9,6 +9,7 @@ import { checksumFor, githubDownload, installRelease, platformAsset } from "../i
 test("platform selection rejects unsupported builds", () => {
   assert.equal(platformAsset("linux", "arm64").name, "lerna-linux-arm64");
   assert.equal(platformAsset("win32", "x64").name, "lerna-win-x64.exe");
+  assert.equal(platformAsset("win32", "arm64").name, "lerna-win-arm64.exe");
   assert.equal(platformAsset("darwin", "arm64").name, "lerna-osx-arm64");
   assert.throws(() => platformAsset("darwin", "x64"), /supports Linux/);
 });

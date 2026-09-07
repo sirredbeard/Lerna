@@ -48,11 +48,35 @@ public static class ModelWire
     public static byte[] RewriteModelToDeployment(JsonObject body, ModelMapping mapping)
     {
         body["model"] = mapping.Deployment;
+        RemoveForeignEncryptedReasoning(body, mapping);
         NormalizeResponsesInputItemIds(body, mapping);
         ApplyPromptCacheOptimization(body, mapping);
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream)) body.WriteTo(writer);
         return stream.ToArray();
+    }
+
+    private static void RemoveForeignEncryptedReasoning(JsonObject body, ModelMapping mapping)
+    {
+        if (mapping.Wire != Responses || body["input"] is not JsonArray input) return;
+
+        // Encrypted reasoning is provider-bound continuation state. Copilot-hosted Responses calls
+        // use opaque base64 IDs, while public Responses reasoning items returned by Azure use rs_
+        // IDs. Replaying a Copilot blob to Azure fails with "encrypted content could not be
+        // verified". Drop only those foreign reasoning items; keep Azure's own rs_ items so a
+        // conversation that remains on the same deployment retains its reasoning continuity.
+        for (var index = input.Count - 1; index >= 0; index--)
+        {
+            if (input[index] is not JsonObject item
+                || item["type"]?.GetValue<string>() != "reasoning"
+                || item["encrypted_content"]?.GetValueKind() != JsonValueKind.String)
+                continue;
+
+            var itemId = item["id"]?.GetValueKind() == JsonValueKind.String
+                ? item["id"]!.GetValue<string>() : null;
+            if (itemId is null || !itemId.StartsWith("rs_", StringComparison.Ordinal))
+                input.RemoveAt(index);
+        }
     }
 
     private static void NormalizeResponsesInputItemIds(JsonObject body, ModelMapping mapping)

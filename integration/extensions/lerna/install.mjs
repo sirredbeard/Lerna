@@ -14,9 +14,9 @@ const maxBinary = 100 * 1024 * 1024;
 export function platformAsset(platform = process.platform, arch = process.arch) {
   const rid = {
     "linux:x64": "linux-x64", "linux:arm64": "linux-arm64",
-    "win32:x64": "win-x64", "darwin:arm64": "osx-arm64",
+    "win32:x64": "win-x64", "win32:arm64": "win-arm64", "darwin:arm64": "osx-arm64",
   }[`${platform}:${arch}`];
-  if (!rid) throw new Error("Lerna supports Linux x64/arm64, Windows x64, and macOS arm64.");
+  if (!rid) throw new Error("Lerna supports Linux x64/arm64, Windows x64/arm64, and macOS arm64.");
   return { rid, name: `lerna-${rid}${platform === "win32" ? ".exe" : ""}` };
 }
 

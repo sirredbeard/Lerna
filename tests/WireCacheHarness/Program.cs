@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json.Nodes;
 using Lerna;
 
@@ -78,6 +79,48 @@ Check(normalizedReasoning[0]!["id"]!.GetValue<string>() == "rs_azure_reasoning_i
     "Azure reasoning continuation item was removed");
 Check(normalizedReasoning[0]!["encrypted_content"]!.GetValue<string>() == "azure-bound-ciphertext",
     "Azure reasoning continuation content was altered");
+
+// The mirror image, for a model deliberately left on Copilot while others route to Foundry:
+// Azure's own rs_ items are the foreign ones now, and Copilot answers HTTP 400 if they survive.
+var backToCopilot = (JsonObject)baseBody.DeepClone();
+backToCopilot["input"] = new JsonArray(
+    new JsonObject
+    {
+        ["type"] = "reasoning",
+        ["id"] = Convert.ToBase64String(new byte[315]),
+        ["encrypted_content"] = "copilot-bound-ciphertext",
+        ["summary"] = new JsonArray(),
+    },
+    new JsonObject
+    {
+        ["type"] = "reasoning",
+        ["id"] = "rs_azure_reasoning_item",
+        ["encrypted_content"] = "azure-bound-ciphertext",
+        ["summary"] = new JsonArray(),
+    },
+    new JsonObject { ["type"] = "message", ["role"] = "user", ["content"] = "continue" });
+Check(ModelWire.StripForeignEncryptedReasoning(backToCopilot, ReasoningOrigin.Copilot),
+    "scrub did not report removing Azure reasoning");
+var copilotReasoning = backToCopilot["input"]!.AsArray();
+Check(copilotReasoning.Count == 2, "Azure encrypted reasoning item was forwarded to Copilot");
+Check(copilotReasoning[0]!["encrypted_content"]!.GetValue<string>() == "copilot-bound-ciphertext",
+    "Copilot's own reasoning continuation item was removed");
+Check(copilotReasoning[1]!["type"]!.GetValue<string>() == "message", "user input was altered");
+
+// A conversation Lerna never routed must be left completely alone.
+var untouched = (JsonObject)baseBody.DeepClone();
+Check(!ModelWire.StripForeignEncryptedReasoning(untouched, ReasoningOrigin.Copilot),
+    "scrub reported a change on a body with no foreign reasoning");
+Check(untouched["input"]!.AsArray().Count == 1, "clean body was modified");
+
+// A deployment refusing on capacity must hand the turn back to Copilot, never fail it, while a
+// genuine rejection of the request itself must still surface.
+Check(Bridge.IsCapacityRefusal(HttpStatusCode.TooManyRequests), "429 was not treated as a capacity refusal");
+Check(Bridge.IsCapacityRefusal(HttpStatusCode.ServiceUnavailable), "503 was not treated as a capacity refusal");
+Check(Bridge.IsCapacityRefusal((HttpStatusCode)529), "529 overloaded was not treated as a capacity refusal");
+Check(!Bridge.IsCapacityRefusal(HttpStatusCode.BadRequest), "400 must not be retried on Copilot");
+Check(!Bridge.IsCapacityRefusal(HttpStatusCode.Unauthorized), "401 must not be retried on Copilot");
+Check(!Bridge.IsCapacityRefusal(HttpStatusCode.OK), "200 must not be treated as a refusal");
 
 var changedUserInput = (JsonObject)baseBody.DeepClone();
 changedUserInput["input"]![0]!["content"] = "second task";

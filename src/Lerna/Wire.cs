@@ -6,6 +6,16 @@ using System.Text.Json.Nodes;
 
 namespace Lerna;
 
+/// <summary>Which provider minted an encrypted reasoning item, inferred from its item id.</summary>
+public enum ReasoningOrigin
+{
+    /// <summary>GitHub Copilot, which uses opaque base64 item ids.</summary>
+    Copilot,
+
+    /// <summary>Microsoft Foundry, which uses the public Responses API's rs_ item ids.</summary>
+    Azure,
+}
+
 /// <summary>
 /// Builds the outbound Microsoft Foundry BYOK request for one accepted-model inference call, in
 /// whichever wire format that model's <see cref="ModelMapping"/> declares. Both wires stream
@@ -58,13 +68,28 @@ public static class ModelWire
 
     private static void RemoveForeignEncryptedReasoning(JsonObject body, ModelMapping mapping)
     {
-        if (mapping.Wire != Responses || body["input"] is not JsonArray input) return;
+        if (mapping.Wire != Responses) return;
+        StripForeignEncryptedReasoning(body, ReasoningOrigin.Azure);
+    }
 
-        // Encrypted reasoning is provider-bound continuation state. Copilot-hosted Responses calls
-        // use opaque base64 IDs, while public Responses reasoning items returned by Azure use rs_
-        // IDs. Replaying a Copilot blob to Azure fails with "encrypted content could not be
-        // verified". Drop only those foreign reasoning items; keep Azure's own rs_ items so a
-        // conversation that remains on the same deployment retains its reasoning continuity.
+    /// <summary>Drops every encrypted reasoning item in a Responses body that was not minted by
+    /// <paramref name="keep"/>, and reports whether anything was removed.
+    ///
+    /// Encrypted reasoning is provider-bound continuation state, and each provider accepts only
+    /// its own. Copilot-hosted Responses calls use opaque base64 item IDs; public Responses
+    /// reasoning items returned by Microsoft Foundry use rs_ IDs. Replaying a Copilot blob to
+    /// Azure fails with "encrypted content could not be verified", and replaying an Azure blob to
+    /// Copilot is rejected with HTTP 400.
+    ///
+    /// This has to run in BOTH directions. A partially mapped configuration (say Luna and Terra
+    /// mapped to Foundry while Sol deliberately stays on Copilot) interleaves the two providers
+    /// inside one conversation, so a request falling back to Copilot carries Azure-minted
+    /// reasoning from the earlier phases unless it is scrubbed here first.</summary>
+    public static bool StripForeignEncryptedReasoning(JsonObject body, ReasoningOrigin keep)
+    {
+        if (body["input"] is not JsonArray input) return false;
+
+        var removed = false;
         for (var index = input.Count - 1; index >= 0; index--)
         {
             if (input[index] is not JsonObject item
@@ -74,9 +99,17 @@ public static class ModelWire
 
             var itemId = item["id"]?.GetValueKind() == JsonValueKind.String
                 ? item["id"]!.GetValue<string>() : null;
-            if (itemId is null || !itemId.StartsWith("rs_", StringComparison.Ordinal))
-                input.RemoveAt(index);
+            // An id Azure never could have minted (including a missing one) is treated as
+            // Copilot's, which keeps the pre-existing outbound behavior byte-for-byte.
+            var origin = itemId is not null && itemId.StartsWith("rs_", StringComparison.Ordinal)
+                ? ReasoningOrigin.Azure
+                : ReasoningOrigin.Copilot;
+            if (origin == keep) continue;
+
+            input.RemoveAt(index);
+            removed = true;
         }
+        return removed;
     }
 
     private static void NormalizeResponsesInputItemIds(JsonObject body, ModelMapping mapping)

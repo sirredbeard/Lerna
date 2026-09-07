@@ -116,7 +116,7 @@ function summarizeTool(data, cwd) {
   const name = baseToolName(data);
   const args = toolArguments(data.arguments);
   const paths = argumentPaths(args, cwd);
-  const pathText = paths.map(path => `\`${path}\``).join(", ");
+  const pathText = paths.join(", ");
   const shortName = name.toLowerCase();
 
   if (data.mcpServerName) {
@@ -125,11 +125,11 @@ function summarizeTool(data, cwd) {
   }
   if (["grep", "grep_search"].includes(shortName)) {
     const pattern = searchText(args, ["pattern", "query", "searchTerm"]);
-    return { name, item: `${pattern ? `\`${pattern}\`` : "search"}${pathText ? ` in ${pathText}` : ""}` };
+    return { name, item: `${pattern || "search"}${pathText ? ` in ${pathText}` : ""}` };
   }
   if (["glob", "file_search"].includes(shortName)) {
     const pattern = searchText(args, ["pattern", "query", "glob"]);
-    return { name, item: `${pattern ? `\`${pattern}\`` : "files"}${pathText ? ` in ${pathText}` : ""}` };
+    return { name, item: `${pattern || "files"}${pathText ? ` in ${pathText}` : ""}` };
   }
   if (["view", "read_file", "edit", "create", "write_file", "apply_patch"].includes(shortName)) {
     return { name, item: pathText || firstText(args, ["path", "file", "filePath"], 120) || name };
@@ -223,10 +223,15 @@ export function createVerboseReporter({
     reasoning = "";
   }
 
+  // Copilot CLI rows are a glyph, one emphasised word, then plain body text. HydraFusion's own
+  // rows separate their segments with a middle dot, so Lerna uses the same separator and leaves
+  // it outside the emphasis: only "Lerna" is bold, and the dot plus everything after it stay in
+  // the host's plain body colour instead of being pulled into the bold heading. Avoiding code
+  // spans likewise keeps file names grey on the terminal background rather than inverted white.
   function emit(message, { ephemeral = true, level = "info", label } = {}) {
     if (!isEnabled() || !message) return Promise.resolve();
-    const heading = label ? `Lerna · ${label}` : "Lerna";
-    const task = queue.then(() => log(`⎇ **${heading}** ${message}`, { ephemeral, level }));
+    const detail = label ? `${label} ${message}` : message;
+    const task = queue.then(() => log(`⎇ **Lerna** · ${detail}`, { ephemeral, level }));
     queue = task.catch(() => {});
     return task;
   }
@@ -256,7 +261,7 @@ export function createVerboseReporter({
         break;
       case "session.fusion_resolved":
         activeFusion = true;
-        await emit(routeText(data), { ephemeral: false, label: "Route:" });
+        await emit(routeText(data), { ephemeral: false, label: "Route" });
         break;
       case "session.fusion_route_failed":
         activeFusion = false;
@@ -398,6 +403,13 @@ export function createVerboseReporter({
     handle,
     reset,
     reportResponse: ({ status, via, adaptedModel }) => {
+      // The deployment was out of capacity, so the turn went to Copilot instead of failing.
+      // Worth saying plainly: the model is mapped, and this turn still did not run on Foundry.
+      if (via === "capacity-fallback") {
+        return emit(`${modelText(adaptedModel)} → Copilot, Foundry deployment at capacity`, {
+          ephemeral: false, level: "warning", label: "Route",
+        });
+      }
       if (via !== "byok" || !adaptedModel) return Promise.resolve();
       const failure = Number(status) >= 400 ? ` · HTTP ${status}` : "";
       return emit(`${modelText(adaptedModel)} → Microsoft Foundry${failure}`, {

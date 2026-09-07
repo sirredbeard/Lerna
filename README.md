@@ -65,6 +65,8 @@ From inside GitHub Copilot CLI:
 
 Start a fresh Copilot CLI process after installing or updating Lerna. The request interceptor has to attach before the first session starts, so `/restart` and `--resume` cannot activate routing in a process that is already running.
 
+To resume a conversation with routing intact, use `copilot --session-id=<id>` rather than `copilot --resume=<id>`. `--resume` reloads extensions into a second process after a session already exists, and the runtime refuses the interceptor there. See [issue #2](https://github.com/sirredbeard/Lerna/issues/2).
+
 When Lerna starts, it checks whether GitHub Copilot CLI experimental features are enabled. If they are off, Lerna will ask you to enable them and writes the setting for you. Lerna also checks the current model and automatically selects HydraFusion when another model is selected. A restart may be required after enabling experimental features before HydraFusion becomes available.
 
 `/lerna`
@@ -224,6 +226,8 @@ For a stuck run, use `/diagnose`, then inspect the current process log and the n
 Concurrent Copilot CLI instances are supported. Each process starts its own stdio-connected Lerna helper, there is no shared port, lock file, or singleton service, and the helper exits when its parent extension closes, including after a forced Copilot exit.
 
 `Cannot set LLM inference provider while sessions are active` refers to another session inside the same Copilot process, not another terminal or an orphaned Lerna helper. Fully quit that one Copilot process and start it again. `/restart` and `--resume` reuse session state too late for the interceptor registration used by the supported Copilot CLI build.
+
+With `--resume` the CLI opens a throwaway session, loads extensions into it, then switches to the resumed session, and that switch reloads extensions into a second process where a session already exists. Lerna registers fine the first time and is refused the second. Verbose reporting still works, model calls go to Copilot. Use `copilot --session-id=<id>` to resume the same conversation with one extension load. Details and the paths already ruled out are in [issue #2](https://github.com/sirredbeard/Lerna/issues/2).
 
 ## Notes
 

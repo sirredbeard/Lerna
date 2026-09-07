@@ -491,6 +491,7 @@ public sealed class Bridge
             return;
         }
 
+        string? throttledModel = null;
         var config = LoadConfig();
         var eligible = config.Enabled && config.Configured
             && !string.IsNullOrEmpty(sessionId) && sessionId == _boundSessionId
@@ -509,11 +510,64 @@ public sealed class Bridge
                 && await TryForwardByok(id, sessionId, body, config, writer, token).ConfigureAwait(false)) return;
             // Copilot uses /responses for OpenAI-wire models and /v1/messages for Anthropic-wire
             // models. In both cases the declared model selects its own validated Azure mapping.
-            if (config.Models.Count > 0
-                && await TryForwardMapped(id, sessionId, body, config, writer, token).ConfigureAwait(false)) return;
+            if (config.Models.Count > 0)
+            {
+                var mapped = await TryForwardMapped(id, sessionId, body, config, writer, token).ConfigureAwait(false);
+                if (mapped == MappedForward.Handled) return;
+                // Remembered so the timeline can say the turn moved providers; a silent fallback
+                // would leave a mapped model looking like it was never routed at all.
+                throttledModel = mapped == MappedForward.FallBackToCopilot ? DeclaredModel(body) : null;
+            }
         }
 
-        await ForwardPassthrough(id, uri, method, headers, body, "copilot", null, writer, token).ConfigureAwait(false);
+        // Falling back to Copilot -- for a model Lerna does not route (unmapped, or one of the MAI
+        // models), or for a mapped model whose deployment just refused on capacity -- still has to
+        // undo Lerna's own footprint on the conversation: any earlier phase
+        // this session served from Foundry left rs_ encrypted reasoning behind, and Copilot
+        // rejects another provider's blob with HTTP 400.
+        if (eligible && uri.AbsolutePath == "/responses"
+            && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+        {
+            body = StripAzureReasoning(body, headers);
+        }
+
+        await ForwardPassthrough(id, uri, method, headers, body,
+            throttledModel is null ? "copilot" : "capacity-fallback", throttledModel, writer, token).ConfigureAwait(false);
+    }
+
+    /// <summary>Reads back the model id Copilot asked for, used only to name the model in a
+    /// fallback report.</summary>
+    private static string? DeclaredModel(byte[] body)
+    {
+        try
+        {
+            if (JsonNode.Parse(body) is JsonObject requestBody
+                && requestBody["model"]?.GetValueKind() == JsonValueKind.String)
+                return requestBody["model"]!.GetValue<string>();
+        }
+        catch (JsonException) { }
+        return null;
+    }
+
+    /// <summary>Removes Foundry-minted encrypted reasoning from a body headed back to Copilot.
+    /// Returns the original bytes untouched unless something was actually removed, so a
+    /// conversation Lerna never routed is forwarded byte-for-byte as before.</summary>
+    private static byte[] StripAzureReasoning(byte[] body, JsonObject headers)
+    {
+        JsonNode? node;
+        try { node = JsonNode.Parse(body); }
+        catch (JsonException) { return body; }
+        if (node is not JsonObject requestBody) return body;
+        if (!ModelWire.StripForeignEncryptedReasoning(requestBody, ReasoningOrigin.Copilot)) return body;
+
+        var rewritten = SerializeNode(requestBody);
+        // The caller replays the original request headers verbatim; a stale content-length from
+        // the pre-scrub body would truncate or stall the forwarded request.
+        foreach (var name in headers.Select(pair => pair.Key)
+                     .Where(name => string.Equals(name, "content-length", StringComparison.OrdinalIgnoreCase))
+                     .ToList())
+            headers.Remove(name);
+        return rewritten;
     }
 
     private async Task ForwardFusionPlan(string id, Uri uri, JsonObject headers, byte[] body, string sessionId,
@@ -619,43 +673,63 @@ public sealed class Bridge
         return PlanAdaptOutcome.Rewritten;
     }
 
+    private enum MappedForward
+    {
+        /// <summary>No mapped Azure route applies; the request is Copilot's as it always was.</summary>
+        NotMapped,
+        /// <summary>The request was served from Azure (successfully or not) and answered.</summary>
+        Handled,
+        /// <summary>A mapped route existed but Azure could not take the request right now.
+        /// The turn is handed back to Copilot rather than failed.</summary>
+        FallBackToCopilot,
+    }
+
+    /// <summary>A Foundry deployment's throughput is provisioned per deployment and is typically
+    /// far smaller than Copilot's shared pool, so a busy turn can exhaust it even though nothing
+    /// is wrong with the request. These statuses mean "not now", never "not valid", so the same
+    /// request is still safe to serve from Copilot.</summary>
+    internal static bool IsCapacityRefusal(HttpStatusCode status) =>
+        status is HttpStatusCode.TooManyRequests            // throttled: over the deployment's TPM
+            or HttpStatusCode.ServiceUnavailable            // deployment briefly unavailable
+            or (HttpStatusCode)529;                         // Anthropic-wire "overloaded"
+
     /// <summary>Routes an accepted request to whichever model config.Models says it belongs to,
     /// via that model's own wire (Responses or Anthropic) and its own mapped Azure deployment.
     /// Never reached for a model not present (and format-valid) in config.Models; never sends a
     /// request for model A to model B's deployment.</summary>
-    private async Task<bool> TryForwardMapped(string id, string sessionId, byte[] body, LernaConfig config,
+    private async Task<MappedForward> TryForwardMapped(string id, string sessionId, byte[] body, LernaConfig config,
         OutputWriter writer, CancellationToken token)
     {
         JsonNode? node;
         try { node = JsonNode.Parse(body); }
-        catch (JsonException) { return false; }
-        if (node is not JsonObject requestBody) return false;
+        catch (JsonException) { return MappedForward.NotMapped; }
+        if (node is not JsonObject requestBody) return MappedForward.NotMapped;
 
         var modelId = requestBody["model"]?.GetValueKind() == JsonValueKind.String ? requestBody["model"]!.GetValue<string>() : null;
-        if (modelId is null || !config.Models.TryGetValue(modelId, out var mapping)) return false;
-        if (ModelMappingValidation.FormatErrors(modelId, mapping).Count > 0) return false; // never route on an invalid mapping
+        if (modelId is null || !config.Models.TryGetValue(modelId, out var mapping)) return MappedForward.NotMapped;
+        if (ModelMappingValidation.FormatErrors(modelId, mapping).Count > 0) return MappedForward.NotMapped; // never route on an invalid mapping
 
         if (mapping.Wire == ModelWire.Anthropic)
         {
             // Hydra is expected to already build an Anthropic Messages-shaped body for a model
             // mapped to this wire. If it hasn't, this is not a translation Lerna will attempt --
             // fall through and leave the request on Copilot rather than guess.
-            if (!ModelWire.LooksLikeAnthropicMessagesBody(requestBody)) return false;
+            if (!ModelWire.LooksLikeAnthropicMessagesBody(requestBody)) return MappedForward.NotMapped;
         }
         else if (mapping.Wire != ModelWire.Responses)
         {
-            return false; // unrecognized/unverified wire: never route
+            return MappedForward.NotMapped; // unrecognized/unverified wire: never route
         }
         else if (requestBody["previous_response_id"] is not null)
         {
             // Responses-only continuation concept; a different provider can't honor it.
             await writer.WriteError(id, "Cannot continue a prior response on a different provider").ConfigureAwait(false);
-            return true;
+            return MappedForward.Handled;
         }
 
         string bearerToken;
         try { bearerToken = await _azureTokens.GetTokenAsync(mapping, token).ConfigureAwait(false); }
-        catch (LernaCliException ex) { await writer.WriteError(id, ex.Message).ConfigureAwait(false); return true; }
+        catch (LernaCliException ex) { await writer.WriteError(id, ex.Message).ConfigureAwait(false); return MappedForward.Handled; }
 
         var rewrittenBody = ModelWire.RewriteModelToDeployment(requestBody, mapping);
 
@@ -663,13 +737,19 @@ public sealed class Bridge
             && Encoding.UTF8.GetString(rewrittenBody).Contains(sessionToken, StringComparison.Ordinal))
         {
             await writer.WriteError(id, "Refusing to forward a request containing the fusion session token").ConfigureAwait(false);
-            return true;
+            return MappedForward.Handled;
         }
 
         using var request = ModelWire.BuildRequest(mapping, rewrittenBody, bearerToken);
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+
+        // A refusal for capacity says nothing about the request itself, so failing the turn here
+        // would strand work Copilot can still serve. The caller re-forwards the original body,
+        // which never carried the Azure rewrite.
+        if (IsCapacityRefusal(response.StatusCode)) return MappedForward.FallBackToCopilot;
+
         await StreamResponse(id, response, null, "byok", modelId, writer, token).ConfigureAwait(false);
-        return true;
+        return MappedForward.Handled;
     }
 
     /// <summary>Only reached when a solo v1 plan was previously adapted and confirmed for this

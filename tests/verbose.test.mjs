@@ -53,13 +53,13 @@ test("reports HydraFusion routing, phase progress, and persistent completions", 
     durationMs: 2500, usage: { inputTokens: 1200, outputTokens: 345, cachedTokens: 800, totalNanoAiu: 5_267_100_000 },
   }));
 
-  assert.match(logs[0].message, /^⎇ \*\*Lerna · Route:\*\* Review, primary Sol, reviewer Opus 5\./);
+  assert.match(logs[0].message, /^⎇ \*\*Lerna\*\* · Route Review, primary Sol, reviewer Opus 5\./);
   assert.equal(logs[0].options.ephemeral, false);
   assert.match(logs[1].message, /started solver \(implementation\) on Sol/);
   assert.equal(logs[1].options.ephemeral, false);
   assert.match(logs[2].message, /Sol is streaming, 4 KiB received/);
   assert.match(logs[3].message, /1\.2K input, 345 output, 800 cached, 5\.27 AIC/);
-  assert.match(logs[3].message, /^⎇ \*\*Lerna · Phase\*\* /);
+  assert.match(logs[3].message, /^⎇ \*\*Lerna\*\* · Phase /);
   assert.equal(logs[3].options.ephemeral, false);
 });
 
@@ -72,10 +72,10 @@ test("streams reasoning deltas while a HydraFusion phase is active", async () =>
   await reporter.handle(event("assistant.reasoning_delta", { deltaContent: "the configuration." }));
   await reporter.handle(event("assistant.reasoning", { content: "Inspecting the configuration." }));
 
-  assert.equal(logs[1].message, "⎇ **Lerna · Reasoning** Sol · Inspecting");
+  assert.equal(logs[1].message, "⎇ **Lerna** · Reasoning Sol · Inspecting");
   assert.equal(logs[1].options.ephemeral, true);
-  assert.equal(logs[2].message, "⎇ **Lerna · Reasoning** Sol · Inspecting the configuration.");
-  assert.equal(logs[3].message, "⎇ **Lerna · Reasoning** Sol · Inspecting the configuration.");
+  assert.equal(logs[2].message, "⎇ **Lerna** · Reasoning Sol · Inspecting the configuration.");
+  assert.equal(logs[3].message, "⎇ **Lerna** · Reasoning Sol · Inspecting the configuration.");
   assert.equal(logs[3].options.ephemeral, false);
 });
 
@@ -87,7 +87,7 @@ test("reports the safe reason for a failed Hydra phase", async () => {
     degradedToPhaseId: "repair",
   }));
 
-  assert.match(logs[0].message, /^⎇ \*\*Lerna · Phase\*\* /);
+  assert.match(logs[0].message, /^⎇ \*\*Lerna\*\* · Phase /);
   assert.match(logs[0].message, /mai-code-1\.1-flash failed after 1\.7s \(HTTP 400\); continuing with a fallback phase/);
   assert.equal(logs[0].options.level, "warning");
 });
@@ -98,7 +98,7 @@ test("reports the final HydraFusion completion under the Route label like the re
     durationMs: 140_200, finalSourceModel: "gpt-5.6-luna", usage: { totalNanoAiu: 800_000_000 },
   }));
 
-  assert.equal(logs[0].message, "⎇ **Lerna · Route** HydraFusion completed in 140.2s using Luna as the final source, 0.80 AIC.");
+  assert.equal(logs[0].message, "⎇ **Lerna** · Route HydraFusion completed in 140.2s using Luna as the final source, 0.80 AIC.");
   assert.equal(logs[0].options.ephemeral, false);
 });
 
@@ -113,7 +113,7 @@ test("reports root Hydra tools immediately", async () => {
   }));
 
   assert.equal(logs.length, 1);
-  assert.equal(logs[0].message, "⎇ **Lerna · Read** Terra · `src/app.mjs`");
+  assert.equal(logs[0].message, "⎇ **Lerna** · Read Terra · src/app.mjs");
   await reporter.drain();
   assert.equal(logs.length, 1);
   assert.equal(logs[0].options.ephemeral, false, "tool activity must persist in the transcript");
@@ -140,7 +140,7 @@ test("reports every rapid root Hydra tool as it starts", async () => {
   assert.equal(logs.length, 6);
   assert.deepEqual(
     logs.slice(2).map(item => item.message),
-    ["alpha", "beta", "gamma", "delta"].map(pattern => `⎇ **Lerna · Search** Luna · \`${pattern}\` in \`src\``),
+    ["alpha", "beta", "gamma", "delta"].map(pattern => `⎇ **Lerna** · Search Luna · ${pattern} in src`),
   );
   await reporter.drain();
   assert.equal(logs.length, 6);
@@ -162,7 +162,7 @@ test("reports useful commands without intent or partial output", async () => {
   const text = logs.map(log => log.message).join("\n");
   assert.equal(logs.length, 2);
   assert.match(text, /selecting a route/);
-  assert.match(text, /\*\*Lerna · Shell\*\* Luna · npm test -- --api-key=\[redacted\]/);
+  assert.match(text, /\*\*Lerna\*\* · Shell Luna · npm test -- --api-key=\[redacted\]/);
   assert.doesNotMatch(text, /example|TOP-SECRET|STILL-SECRET|supersecret/);
 });
 
@@ -191,10 +191,10 @@ test("reports concise subagent activity with the actual files and searches", asy
 
   assert.equal(logs.length, 7);
   assert.deepEqual(logs.slice(2, 6).map(item => item.message), [
-    "⎇ **Lerna · Search Subagent** `src/one.mjs`",
-    "⎇ **Lerna · Search Subagent** `src/two.mjs`",
-    "⎇ **Lerna · Search Subagent** `createVerboseReporter` in `integration`",
-    "⎇ **Lerna · Search Subagent** `**/*.test.mjs` in `tests`",
+    "⎇ **Lerna** · Search Subagent src/one.mjs",
+    "⎇ **Lerna** · Search Subagent src/two.mjs",
+    "⎇ **Lerna** · Search Subagent createVerboseReporter in integration",
+    "⎇ **Lerna** · Search Subagent **/*.test.mjs in tests",
   ]);
   assert.match(logs.at(-1).message, /Search Subagent completed in 500ms, 2 reads, 2 searches/);
 });
@@ -221,10 +221,10 @@ test("bounds duplicate subagent searches and removes prompt-like query tails", a
   }, { agentId: "agent-1" }));
 
   assert.deepEqual(logs.slice(2, -1).map(item => item.message), [
-    "⎇ **Lerna · Search Subagent** `request body|request body =|RequestBody`",
-    "⎇ **Lerna · Search Subagent** `gpt-5\\.6-luna`",
-    "⎇ **Lerna · Search Subagent** `input\\[.*\\]\\.id`",
-    "⎇ **Lerna · Search Subagent** `HTTP 400`",
+    "⎇ **Lerna** · Search Subagent request body|request body =|RequestBody",
+    "⎇ **Lerna** · Search Subagent gpt-5\\.6-luna",
+    "⎇ **Lerna** · Search Subagent input\\[.*\\]\\.id",
+    "⎇ **Lerna** · Search Subagent HTTP 400",
   ]);
   assert.match(logs.at(-1).message, /6 searches/);
   assert.doesNotMatch(logs.map(item => item.message).join("\n"), /keep track|OpenAI Responses/);
@@ -247,10 +247,10 @@ test("suppresses detail-free subagent noise but retains a concise failure", asyn
   }, { agentId: "agent-1" }));
 
   assert.deepEqual(logs.map(item => item.message), [
-    "⎇ **Lerna · Route** HydraFusion is selecting a route.",
-    "⎇ **Lerna** Subagent: Search Subagent started.",
-    "⎇ **Lerna · Search Subagent** read failed.",
-    "⎇ **Lerna** Subagent: Search Subagent completed in 250ms, 2 reads, 1 search, 1 failure.",
+    "⎇ **Lerna** · Route HydraFusion is selecting a route.",
+    "⎇ **Lerna** · Subagent: Search Subagent started.",
+    "⎇ **Lerna** · Search Subagent read failed.",
+    "⎇ **Lerna** · Subagent: Search Subagent completed in 250ms, 2 reads, 1 search, 1 failure.",
   ]);
   assert.equal(logs[2].options.level, "warning");
 });
@@ -264,7 +264,7 @@ test("reports MCP server, tool, and query details", async () => {
   }));
 
   assert.equal(logs[0].message,
-    "⎇ **Lerna · search_code** Sol · github-mcp-server · search_code · requestSessionId");
+    "⎇ **Lerna** · search_code Sol · github-mcp-server · search_code · requestSessionId");
 });
 
 test("reports subagents and skills while fusion is active", async () => {
@@ -291,7 +291,7 @@ test("disabling clears stale tool state and suppresses later events", async () =
   await reporter.handle(event("tool.execution_complete", { toolCallId: "t1", success: true }));
 
   assert.equal(logs.length, 1);
-  assert.match(logs[0].message, /\*\*Lerna · Read\*\* Sol · view/);
+  assert.match(logs[0].message, /\*\*Lerna\*\* · Read Sol · view/);
 });
 
 test("reports confirmed Azure routing without successful HTTP status noise", async () => {
@@ -301,10 +301,20 @@ test("reports confirmed Azure routing without successful HTTP status noise", asy
   await reporter.reportResponse({ status: 200, via: "copilot", adaptedModel: "mai-code-1.1-flash" });
 
   assert.deepEqual(logs, [{
-    message: "⎇ **Lerna · Route** Opus 5 → Microsoft Foundry",
+    message: "⎇ **Lerna** · Route Opus 5 → Microsoft Foundry",
     options: { ephemeral: false, level: "info" },
   }, {
-    message: "⎇ **Lerna · Route** Sol → Microsoft Foundry · HTTP 429",
+    message: "⎇ **Lerna** · Route Sol → Microsoft Foundry · HTTP 429",
+    options: { ephemeral: false, level: "warning" },
+  }]);
+});
+
+test("reports a capacity fallback as a route change rather than a failure", async () => {
+  const { logs, reporter } = fixture();
+  await reporter.reportResponse({ status: 200, via: "capacity-fallback", adaptedModel: "claude-opus-5" });
+
+  assert.deepEqual(logs, [{
+    message: "⎇ **Lerna** · Route Opus 5 → Copilot, Foundry deployment at capacity",
     options: { ephemeral: false, level: "warning" },
   }]);
 });

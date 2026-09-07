@@ -1,4 +1,6 @@
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -46,9 +48,59 @@ public static class ModelWire
     public static byte[] RewriteModelToDeployment(JsonObject body, ModelMapping mapping)
     {
         body["model"] = mapping.Deployment;
+        ApplyPromptCacheOptimization(body, mapping);
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream)) body.WriteTo(writer);
         return stream.ToArray();
+    }
+
+    private static void ApplyPromptCacheOptimization(JsonObject body, ModelMapping mapping)
+    {
+        if (mapping.Wire != Responses || body["prompt_cache_key"] is not null) return;
+
+        var scope = !string.IsNullOrWhiteSpace(mapping.ResourceName)
+            ? mapping.ResourceName
+            : string.IsNullOrWhiteSpace(mapping.Endpoint)
+                ? "lerna"
+                : mapping.Endpoint.TrimEnd('/');
+
+        var seed = BuildPromptCacheSeed(body);
+        if (string.IsNullOrEmpty(seed)) return;
+
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(seed))).ToLowerInvariant();
+        body["prompt_cache_key"] = $"lerna:{scope}:{mapping.Deployment}:{hash}";
+
+        if (body["prompt_cache_options"] is null)
+        {
+            body["prompt_cache_options"] = new JsonObject
+            {
+                ["mode"] = "explicit",
+                ["ttl"] = "30m",
+            };
+        }
+    }
+
+    private static string BuildPromptCacheSeed(JsonObject body)
+    {
+        var parts = new List<string>();
+
+        foreach (var key in new[] { "instructions", "system", "tools", "tool_choice", "parallel_tool_calls", "response_format", "reasoning", "temperature", "top_p" })
+        {
+            if (body[key] is JsonNode node && node is not null)
+            {
+                var json = node.ToJsonString();
+                if (!string.IsNullOrWhiteSpace(json)) parts.Add(json);
+            }
+        }
+
+        if (body["input"] is JsonArray input && input.Count > 0)
+        {
+            var prefix = new JsonArray();
+            foreach (var item in input.Take(3)) prefix.Add(item?.DeepClone());
+            if (prefix.Count > 0) parts.Add(prefix.ToJsonString());
+        }
+
+        return string.Join("\n", parts);
     }
 
     private const string ResponsesPath = "/openai/v1/responses";

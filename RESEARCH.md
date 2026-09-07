@@ -48,7 +48,7 @@ Copilot CLI
   -> solo plan naming one of six accepted Hydra model IDs
   -> Lerna extension interceptor
   -> native Lerna helper over a JSON-lines process bridge
-  -> mapped Azure AI Foundry deployment
+  -> mapped Microsoft Foundry deployment
   -> streamed response back through Copilot CLI
 ```
 

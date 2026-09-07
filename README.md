@@ -4,15 +4,15 @@
 
 <img width="1103" height="761" alt="Screenshot From 2026-09-07 13-27-31" src="https://github.com/user-attachments/assets/19438bda-46c9-4150-abc6-6b9e4e9561bb" />
 
-Lerna is a plugin for GitHub Copilot CLI that adds more detail to [HydraFusion](https://github.blog/ai-and-ml/github-copilot/project-hydrafusion-frontier-quality-via-multi-model-orchestration/) and can route selected model calls to Azure AI Foundry.
+Lerna is a plugin for GitHub Copilot CLI that adds more detail to [HydraFusion](https://github.blog/ai-and-ml/github-copilot/project-hydrafusion-frontier-quality-via-multi-model-orchestration/) and can route selected model calls to Microsoft Foundry.
 
-HydraFusion is an experimental orchestrator. It's planner chooses from a fixed set of GitHub Copilot models, then Lerna can answer a chosen model call with your deployment of that model on Azure.
+HydraFusion is an experimental orchestrator. It's planner chooses from a fixed set of GitHub Copilot models, then Lerna can answer a chosen model call with your deployment of that model from Microsoft Foundry on Azure.
 
 Lerna cannot add models to HydraFusion. HydraFusion currently accepts six model IDs and rejects everything else, so Lerna can only route models HydraFusion already knows about.
 
-Four of the six have equivalents on Azure AI Foundry:
+Four of the six have direct equivalents on Microsoft Foundry:
 
-| HydraFusion model | Azure AI Foundry | Wire format |
+| HydraFusion model | Microsoft Foundry | Wire format |
 | --- | --- | --- |
 | `gpt-5.6-sol` | yes | OpenAI Responses |
 | `gpt-5.6-luna` | yes | OpenAI Responses |
@@ -27,19 +27,33 @@ Each Lerna release tracks the Copilot CLI build it supports.
 
 ## Contents
 
-- [Requirements](#requirements) - What you need before installing Lerna.
+- [Requirements](#requirements) - What you need for verbose output, and what Azure routing adds.
+- [Build and platforms](#build-and-platforms) - Native AOT details, supported platforms, and binary size.
 - [Install](#install) - Install the plugin from Copilot CLI.
 - [Use in Copilot CLI](#use-in-copilot-cli) - Manage routing and verbose output.
 - [Configure](#configure) - Add Azure identity and model mappings.
-- [Fresh Azure AI Foundry setup](#fresh-azure-ai-foundry-setup) - Build the Azure side from scratch.
+- [Fresh Microsoft Foundry setup](#fresh-azure-ai-foundry-setup) - Build the Azure side from scratch.
 - [Troubleshooting](#troubleshooting) - Separate Lerna failures from HydraFusion failures.
 - [Notes](#notes) - Routing behavior and deeper research.
 
 ## Requirements
 
-- A supported GitHub Copilot CLI build with experimental features enabled. Run `copilot --version` against the process you are about to start; the launcher can keep more than one CLI build in it's per-user cache.
-- An Azure AI Foundry resource and `Cognitive Services User` access to run inference.
+Lerna's verbose HydraFusion display does not require Azure or model routing. It only requires a supported GitHub Copilot CLI build with experimental features enabled.
+
+Azure is only required if you want Lerna to route model calls. Routing requires:
+
+- An Microsoft Foundry resource and `Cognitive Services User` access to run inference.
 - One Azure deployment for each HydraFusion model you want Lerna to serve.
+
+## Build and platforms
+
+Lerna is built with .NET 11 Preview 7 Native AOT as a self-contained native binary. You do not need to install .NET to run it.
+
+Release builds support:
+
+- Linux x64 and Arm64.
+- Windows x64 and Arm64.
+- macOS Arm64.
 
 ## Install
 
@@ -53,7 +67,7 @@ From inside Copilot CLI:
 
 Start a fresh Copilot CLI process after installing or updating Lerna. The request interceptor has to attach before the first session starts, so `/restart` and `--resume` cannot activate routing in a process that is already running.
 
-When Lerna starts, it checks whether experimental features are enabled. If they are off, Lerna asks whether to enable them and writes the setting for you. Lerna also checks the current model and automatically selects HydraFusion when another model is selected, with a timeline message explaining the change. A restart may be required after enabling experimental features before HydraFusion becomes available.
+When Lerna starts, it checks whether experimental features are enabled. If they are off, Lerna will ask you to enable them and writes the setting for you. Lerna also checks the current model and automatically selects HydraFusion when another model is selected. A restart may be required after enabling experimental features before HydraFusion becomes available.
 
 `/lerna`
 
@@ -63,9 +77,9 @@ When Lerna starts, it checks whether experimental features are enabled. If they 
 - `/lerna verbose on` / `/lerna verbose off` - Show or hide HydraFusion routing, phase, tool, subagent, and skill activity.
 - `/lerna login` / `/lerna logout` - Refresh or remove the cached Azure sign-in.
 
-Verbose mode is on by default (it is the main reason to install Lerna); turn it off with `/lerna verbose off`. It does not require Azure, a route mapping, or routing to be enabled. You can install Lerna only for the extra HydraFusion activity display and leave `/lerna disable` in place.
+Verbose mode is on by default; turn it off with `/lerna verbose off`. It does not require Azure, a route mapping, or routing to be enabled.
 
-Route, phase-start, and tool-operation messages appear immediately and remain in the timeline while verbose mode is on. Model reasoning is shown live during an active HydraFusion phase, with the completed reasoning retained when the SDK supplies it. A successful Azure response appears as `Lerna · Route Opus 5 → Azure Foundry`; HTTP status is only included for a failed response.
+Route, phase-start, and tool-operation messages appear immediately and remain in the timeline while verbose mode is on. Model reasoning is shown live during an active HydraFusion phase, with the completed reasoning retained when the SDK supplies it.
 
 Tool activity includes useful file names, search expressions, shell and git commands, URLs, and MCP queries. Lerna hides detail-free calls, duplicate searches, and prompt-like text accidentally appended to a search expression, and shows no more than four unique operations for each subagent. Completion totals still count all operations. Partial tool output and provider response bodies are not copied into the timeline, and obvious credential values are redacted.
 
@@ -109,7 +123,7 @@ Lerna stores routing settings and nonsecret Azure identifiers in Copilot's setti
 
 Each `models` key must be one of HydraFusion's six accepted model IDs. Lerna rejects the two MAI IDs because they have no Azure equivalent. Lerna validates the mapping shape, but it does not query Azure Resource Manager during inference to prove which model backs a deployment. Map each key to a deployment of that same model.
 
-## Fresh Azure AI Foundry setup
+## Fresh Microsoft Foundry setup
 
 The Azure estate is the fiddly part. Lerna needs (1) an `AIServices` account, (2) one deployment for each HydraFusion model you want to pay for, (3) an Entra public-client app, and (4) inference permission for the person signing in.
 
@@ -203,18 +217,13 @@ The native binary has the same core controls for shell use:
 - `lerna status` - Show which models are routed and where.
 - `lerna enable` / `lerna disable` - Start or stop routing, keeping the mapping.
 
-Inside Copilot CLI, `/lerna logout` also disables routing before it removes the cached sign-in. The shell command only removes authentication, so run `lerna disable` first when using the native binary directly.
-
-
 ## Troubleshooting
-
-`HydraFusion · choosing a workflow` is the planner step on GitHub Copilot. Lerna can observe and pass that request through, but no Azure model call has started yet. A later `Lerna · Route <model> → Azure Foundry` timeline entry confirms Azure accepted that model request. Failed responses retain their HTTP status.
 
 For a stuck run, use `/diagnose`, then inspect the current process log and the newest `plugin-lerna_lerna-*.log` under `~/.copilot/logs/extensions/`. A hang is likely in Lerna if the extension log stops before `ready`, reports that the helper stopped, or the timeline reports a failed Azure response. A stall after clean route and phase entries is normally HydraFusion's planner or cancellation path.
 
 `ctrl+c` requests cancellation, `esc esc` also interrupts active work, and `ctrl+c` twice exits the CLI. A cancelled Hydra phase may take a moment to unwind if the model is between requests, however Lerna forwards the request abort to its native helper immediately.
 
-Concurrent Copilot CLI processes are supported. Each process starts its own stdio-connected Lerna helper, there is no shared port, lock file, or singleton service, and the helper exits when its parent extension closes, including after a forced Copilot exit. One leftover Copilot process does not block a new one.
+Concurrent Copilot CLI instances are supported. Each process starts its own stdio-connected Lerna helper, there is no shared port, lock file, or singleton service, and the helper exits when its parent extension closes, including after a forced Copilot exit.
 
 `Cannot set LLM inference provider while sessions are active` refers to another session inside the same Copilot process, not another terminal or an orphaned Lerna helper. Fully quit that one Copilot process and start it again. `/restart` and `--resume` reuse session state too late for the interceptor registration used by the supported Copilot CLI build.
 

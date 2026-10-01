@@ -117,13 +117,6 @@ export async function installRelease({ root, version, token, fetcher = fetch, pl
   const directory = join(root, version, rid);
   const binary = join(directory, name.endsWith(".exe") ? "lerna.exe" : "lerna");
   const hash = bytes => createHash("sha256").update(bytes).digest("hex");
-  try {
-    const stat = await lstat(binary);
-    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > maxBinary) throw new Error("Invalid cached binary.");
-    const expected = (await readFile(`${binary}.sha256`, "utf8")).trim();
-    if (/^[a-f0-9]{64}$/.test(expected) && hash(await readFile(binary)) === expected) return binary;
-  } catch {}
-
   const release = JSON.parse(await githubDownload(
     `https://api.github.com/repos/${repository}/releases/tags/v${version}`, token, 1024 * 1024, fetcher,
   ));
@@ -137,6 +130,12 @@ export async function installRelease({ root, version, token, fetcher = fetch, pl
   };
   const sums = await githubDownload(assetUrl("SHA256SUMS"), token, 16384, fetcher);
   const expected = checksumFor(sums.toString("utf8"), name);
+  try {
+    const stat = await lstat(binary);
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > maxBinary) throw new Error("Invalid cached binary.");
+    if (hash(await readFile(binary)) === expected) return binary;
+  } catch {}
+
   const bytes = await githubDownload(assetUrl(name), token, maxBinary, fetcher);
   if (hash(bytes) !== expected) throw new Error("Lerna binary checksum does not match the release.");
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -144,9 +143,18 @@ export async function installRelease({ root, version, token, fetcher = fetch, pl
   const temporary = join(directory, `.download-${randomUUID()}`);
   try {
     await writeFile(temporary, bytes, { mode: 0o700, flag: "wx" });
-    try { await rename(temporary, binary); }
-    catch (error) {
-      if (!["EEXIST", "EPERM"].includes(error.code) || hash(await readFile(binary)) !== expected) throw error;
+    try {
+      await rename(temporary, binary);
+    } catch (error) {
+      if (!["EEXIST", "EPERM"].includes(error.code)) throw error;
+      if (hash(await readFile(binary)) !== expected) {
+        try { await rm(binary); }
+        catch (removeError) { if (removeError.code !== "ENOENT") throw removeError; }
+        try { await rename(temporary, binary); }
+        catch (replaceError) {
+          if (replaceError.code !== "EEXIST" || hash(await readFile(binary)) !== expected) throw replaceError;
+        }
+      }
     }
     await writeFile(`${binary}.sha256`, `${expected}\n`, { mode: 0o600 });
     return binary;

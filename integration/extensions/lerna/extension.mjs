@@ -68,7 +68,6 @@ const commands = [{
 }];
 const sdk = process.env.COPILOT_SDK_PATH;
 const version = sdk ? JSON.parse(await readFile(join(dirname(sdk), "package.json"), "utf8")).version : undefined;
-const compatible = version === "1.0.83";
 
 async function resumeSession(activeClient) {
   await activeClient.start();
@@ -82,28 +81,18 @@ async function resumeSession(activeClient) {
   } finally { activeClient.connection.sendRequest = send; }
 }
 
-let interceptionActive = compatible;
-if (compatible) {
-  // 1.0.83 only accepts the interceptor in the initial connection handshake, and only before
-  // any session already exists in this CLI process. A plugin attaching to an already-running
-  // or resumed session (the normal case for an installed plugin) always finds one, so
-  // registration is expected to fail there; degrade to a non-intercepting attach instead of
-  // aborting the whole extension, so /lerna, verbose mode, and configuration still work. Live
-  // BYOK routing then needs a completely fresh `copilot` launch (not /restart or --resume),
-  // started before any other session in the same host process.
-  client = new CopilotClient({
-    _internalConnection: { kind: "parent-process" },
-    requestHandler: new Handler(),
-  });
-  try {
-    session = await resumeSession(client);
-  } catch (error) {
-    interceptionActive = false;
-    console.error(`Lerna could not attach live routing in this process (${error.message}); continuing without it.`);
-    client = new CopilotClient({ _internalConnection: { kind: "parent-process" } });
-    session = await resumeSession(client);
-  }
-} else {
+// Try the interceptor on the installed Copilot CLI. The attach handshake is the
+// compatibility check, so a new CLI version can work without a hard-coded gate.
+let interceptionActive = true;
+client = new CopilotClient({
+  _internalConnection: { kind: "parent-process" },
+  requestHandler: new Handler(),
+});
+try {
+  session = await resumeSession(client);
+} catch (error) {
+  interceptionActive = false;
+  console.error(`Lerna could not attach live routing in this process (${error.message}); continuing without it.`);
   client = new CopilotClient({ _internalConnection: { kind: "parent-process" } });
   session = await resumeSession(client);
 }
@@ -143,11 +132,9 @@ ready = (async () => {
     process.once("SIGTERM", () => { bridge?.close(); process.exit(0); });
     process.once("SIGINT", () => { bridge?.close(); process.exit(0); });
     console.error(`Lerna ${manifest.version} ready; interception ${interceptionActive && status.enabled ? "enabled" : "inactive"}.`);
-    if (!compatible) {
-      await session.log("Lerna can configure Azure, but this build only intercepts Copilot CLI 1.0.83.", { level: "warning" });
-    } else if (!interceptionActive) {
+    if (!interceptionActive) {
       await session.log(
-        "Lerna is active, but the interceptor could not attach because a session already existed when this extension loaded. Resume with `copilot --session-id=<id>` instead of `--resume` to keep routing.",
+        `Lerna is active, but live routing could not attach to Copilot CLI${version ? ` ${version}` : ""} in this session. Resume with \`copilot --session-id=<id>\` instead of \`--resume\` to keep routing.`,
         { level: "warning" },
       );
     }

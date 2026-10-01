@@ -43,12 +43,14 @@ test("redirects outside GitHub and oversized downloads are rejected", async () =
   await assert.rejects(githubDownload("http://api.github.com/file", undefined, 100), /Expected/);
 });
 
-test("release install verifies bytes and reuses the cache without network access", async t => {
+test("release install verifies the release checksum before reusing the cache", async t => {
   const root = await mkdtemp(join(tmpdir(), "lerna-install-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const bytes = Buffer.from("test executable");
   const hash = createHash("sha256").update(bytes).digest("hex");
+  let requests = 0;
   const fetcher = async url => {
+    requests++;
     if (url.includes("/tags/")) return Response.json({
       tag_name: "v1.0.83", draft: false, assets: [{ id: 1, name: "SHA256SUMS" }, { id: 2, name: "lerna-linux-x64" }],
     });
@@ -57,7 +59,8 @@ test("release install verifies bytes and reuses the cache without network access
   const options = { root, version: "1.0.83", platform: "linux", arch: "x64" };
   const path = await installRelease({ ...options, fetcher });
   assert.deepEqual(await readFile(path), bytes);
-  assert.equal(await installRelease({ ...options, fetcher: () => { throw new Error("Unexpected fetch"); } }), path);
+  assert.equal(await installRelease({ ...options, fetcher }), path);
+  assert.equal(requests, 5);
 });
 
 test("a bad checksum never creates an executable", async t => {

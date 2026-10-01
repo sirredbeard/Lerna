@@ -86,25 +86,44 @@ test("release install replaces a stale Windows cache after republishing", async 
   assert.deepEqual(await readFile(path), versions[1]);
 });
 
+// ensureBinary honours LERNA_BINARY as an explicit override, so the download and
+// cache paths can only be exercised with that override cleared. The build workflow
+// sets it for the native smoke test.
+function hostCache(root, version) {
+  const { rid, name } = platformAsset();
+  const directory = join(root, version, rid);
+  return { directory, binary: join(directory, name.endsWith(".exe") ? "lerna.exe" : "lerna") };
+}
+
+function withoutBinaryOverride(t) {
+  const previous = process.env.LERNA_BINARY;
+  delete process.env.LERNA_BINARY;
+  t.after(() => {
+    if (previous === undefined) delete process.env.LERNA_BINARY;
+    else process.env.LERNA_BINARY = previous;
+  });
+}
+
 test("a cached binary is reused when the release cannot be reached", async t => {
+  withoutBinaryOverride(t);
   const root = await mkdtemp(join(tmpdir(), "lerna-install-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const bytes = Buffer.from("cached executable");
   const hash = createHash("sha256").update(bytes).digest("hex");
-  const directory = join(root, "1.0.84", "linux-x64");
+  const { directory, binary } = hostCache(root, "1.0.84");
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, "lerna"), bytes);
-  await writeFile(join(directory, "lerna.sha256"), `${hash}\n`);
-  const options = { root, version: "1.0.84", platform: "linux", arch: "x64" };
+  await writeFile(binary, bytes);
+  await writeFile(`${binary}.sha256`, `${hash}\n`);
   assert.equal(await ensureBinary("1.0.84", {
     root,
     fetcher: async () => new Response("unavailable", { status: 503 }),
-  }), join(directory, "lerna"));
-  await writeFile(join(directory, "lerna"), Buffer.from("tampered"));
-  await assert.rejects(cachedBinary(options), /does not match its recorded checksum/);
+  }), binary);
+  await writeFile(binary, Buffer.from("tampered"));
+  await assert.rejects(cachedBinary({ root, version: "1.0.84" }), /does not match its recorded checksum/);
 });
 
 test("cache fallback preserves a non-authentication download error", async t => {
+  withoutBinaryOverride(t);
   const root = await mkdtemp(join(tmpdir(), "lerna-install-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await assert.rejects(
@@ -117,13 +136,14 @@ test("cache fallback preserves a non-authentication download error", async t => 
 });
 
 test("cache fallback does not hide release validation failures", async t => {
+  withoutBinaryOverride(t);
   const root = await mkdtemp(join(tmpdir(), "lerna-install-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const bytes = Buffer.from("cached executable");
-  const directory = join(root, "1.0.84", "linux-x64");
+  const { directory, binary } = hostCache(root, "1.0.84");
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, "lerna"), bytes);
-  await writeFile(join(directory, "lerna.sha256"), `${createHash("sha256").update(bytes).digest("hex")}\n`);
+  await writeFile(binary, bytes);
+  await writeFile(`${binary}.sha256`, `${createHash("sha256").update(bytes).digest("hex")}\n`);
   await assert.rejects(
     ensureBinary("1.0.84", { root, fetcher: async () => new Response("{bad json") }),
     SyntaxError,

@@ -130,11 +130,16 @@ export async function installRelease({ root, version, token, fetcher = fetch, pl
   };
   const sums = await githubDownload(assetUrl("SHA256SUMS"), token, 16384, fetcher);
   const expected = checksumFor(sums.toString("utf8"), name);
+  let cacheMatches = false;
   try {
     const stat = await lstat(binary);
     if (stat.isSymbolicLink() || !stat.isFile() || stat.size > maxBinary) throw new Error("Invalid cached binary.");
-    if (hash(await readFile(binary)) === expected) return binary;
+    cacheMatches = hash(await readFile(binary)) === expected;
   } catch {}
+  if (cacheMatches) {
+    await writeFile(`${binary}.sha256`, `${expected}\n`, { mode: 0o600 });
+    return binary;
+  }
 
   const bytes = await githubDownload(assetUrl(name), token, maxBinary, fetcher);
   if (hash(bytes) !== expected) throw new Error("Lerna binary checksum does not match the release.");
@@ -161,27 +166,49 @@ export async function installRelease({ root, version, token, fetcher = fetch, pl
   } finally { await rm(temporary, { force: true }); }
 }
 
-export async function ensureBinary(version) {
+export async function cachedBinary({ root, version, platform, arch }) {
+  if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(version)) throw new Error("Invalid Lerna release version.");
+  const { rid, name } = platformAsset(platform, arch);
+  const binary = join(root, version, rid, name.endsWith(".exe") ? "lerna.exe" : "lerna");
+  const stat = await lstat(binary);
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.size > maxBinary) throw new Error("Invalid cached Lerna binary.");
+  const expected = (await readFile(`${binary}.sha256`, "utf8")).trim();
+  if (!/^[a-f0-9]{64}$/.test(expected)) throw new Error("Invalid cached Lerna checksum.");
+  if (createHash("sha256").update(await readFile(binary)).digest("hex") !== expected) {
+    throw new Error("Cached Lerna binary does not match its recorded checksum.");
+  }
+  return binary;
+}
+
+export async function ensureBinary(version, options = {}) {
   if (process.env.LERNA_BINARY) {
     if (!isAbsolute(process.env.LERNA_BINARY)) throw new Error("LERNA_BINARY must be an absolute path.");
     const stat = await lstat(process.env.LERNA_BINARY);
     if (!stat.isFile()) throw new Error("LERNA_BINARY must point to a regular executable.");
     return process.env.LERNA_BINARY;
   }
-  const root = join(process.env.COPILOT_HOME || join(homedir(), ".copilot"), "lerna", "bin");
+  const root = options.root || join(process.env.COPILOT_HOME || join(homedir(), ".copilot"), "lerna", "bin");
+  const fetcher = options.fetcher || fetch;
   let lastError;
-  try { return await installRelease({ root, version }); }
+  try { return await installRelease({ root, version, fetcher }); }
   catch (error) {
     lastError = error;
-    if (![401, 403, 404].includes(error.status)) throw error;
+    if (!Number.isInteger(error?.status)) throw error;
   }
-  for await (const token of credentials()) {
-    try { return await installRelease({ root, version, token }); }
-    catch (error) {
-      lastError = error;
-      if (![401, 403, 404].includes(error.status)) throw error;
+  if ([401, 403, 404].includes(lastError.status)) {
+    for await (const token of credentials()) {
+      try { return await installRelease({ root, version, token, fetcher }); }
+      catch (error) {
+        lastError = error;
+        if (!Number.isInteger(error?.status)) throw error;
+      }
     }
   }
-  throw new Error(`Lerna v${version} could not be downloaded (HTTP ${lastError?.status}). ` +
+  // The release stays the source of truth for updates, but a binary already verified
+  // against a published checksum keeps Lerna usable when the release cannot be reached
+  // or has not been published yet.
+  try { return await cachedBinary({ root, version }); } catch {}
+  if (![401, 403, 404].includes(lastError.status)) throw lastError;
+  throw new Error(`Lerna v${version} could not be downloaded (HTTP ${lastError.status}) and no verified cached binary is available. ` +
     "The release must exist. For this private repo, use an authorized Git credential or sign in with gh.");
 }

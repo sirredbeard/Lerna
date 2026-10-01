@@ -97,12 +97,15 @@ The public SDK contract includes:
 | `session.fusion_route_started` | HydraFusion started selecting a route. |
 | `session.fusion_resolved` | Pattern, primary model, optional secondary model, fallback model, rule, and routing latency. |
 | `assistant.fusion_phase_started` | Phase kind, semantic role, and concrete model started. |
+| `assistant.fusion_phase_activity` | Content-safe model-output byte counts and tool lifecycle activity for the active phase. |
 | `assistant.streaming_delta` | Cumulative response bytes received. |
 | `assistant.fusion_phase_completed` | Duration, status, token counts, cache counts, request count, and AI-unit cost. |
 | `assistant.fusion_phase_failed` | Failure reason, duration, and degraded phase. |
 | `session.fusion_completed` | Final source model, total duration, usage, and degraded reason. |
 
-The phase contract is enough for useful live progress in `solo`, `cascade`, and `critique` plans without changing Hydra's orchestration. It is not a full stream of the hidden phase output. There is no `assistant.fusion_phase_delta` event in the Copilot SDK bundled with CLI. The completed event contains the phase's full textual output, however publishing that would duplicate internal model work, expose critic or judge content, and couple Lerna to an experimental contract.
+The phase contract is enough for useful live progress in `single`, `cascade`, and `critique` plans without changing Hydra's orchestration. It is not a full stream of the hidden phase output. `assistant.fusion_phase_activity` reports byte counts, not content. The completed event contains the phase's full textual output, however publishing that would duplicate internal model work, expose critic or judge content, and couple Lerna to an experimental contract.
+
+The current SDK emits `assistant.fusion_phase_activity` with the phase ID, activity kind, and cumulative private response bytes. Lerna uses its `model_output` activity as the primary live byte counter and retains `assistant.streaming_delta` support for older CLI builds. Tool activity in this event contains only an opaque correlation token, so useful tool names and arguments still come from the ordinary tool lifecycle events.
 
 The general SDK also emits `assistant.reasoning_delta`, `assistant.message_delta`, and `assistant.tool_call_delta` when streaming is enabled. Reasoning deltas do not carry a Hydra `fusionId` or `phaseId`, so Lerna displays them only while a HydraFusion phase is active and attributes them to that active phase. Ordinary assistant message deltas remain owned by the CLI renderer.
 
@@ -158,7 +161,7 @@ A Cascade turn can look roughly like this:
 ⎇ Lerna · Route Sol → Microsoft Foundry
 ```
 
-Lerna should use the SDK events as the source of truth. Lerna also sees every response chunk passing through the bridge, so it can measure time to first byte and cumulative bytes for BYOK and Copilot passthrough calls. That is useful as a fallback when `assistant.streaming_delta` is missing, but Lerna should count bytes only. Parsing and republishing provider SSE text would weaken the current byte-for-byte response boundary and create a second renderer beside Copilot's own.
+Lerna should use the SDK events as the source of truth. Lerna also sees every response chunk passing through the bridge, so it can measure time to first byte and cumulative bytes for BYOK and Copilot passthrough calls. That is useful as a fallback when phase activity is missing, but Lerna should count bytes only. Parsing and republishing provider SSE text would weaken the current byte-for-byte response boundary and create a second renderer beside Copilot's own.
 
 The code surface is small:
 

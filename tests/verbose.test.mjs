@@ -63,6 +63,33 @@ test("reports HydraFusion routing, phase progress, and persistent completions", 
   assert.equal(logs[3].options.ephemeral, false);
 });
 
+test("reports current HydraFusion phase activity without flooding the timeline", async () => {
+  const { logs, reporter, tick } = fixture();
+  await reporter.handle(event("assistant.fusion_phase_started", {
+    phaseId: "p1", phaseKind: "primary", role: "solver", model: "gpt-5.6-sol",
+  }));
+  tick(2_100);
+  await reporter.handle(event("assistant.fusion_phase_activity", {
+    phaseId: "p1", activity: "model_output", totalResponseSizeBytes: 4096,
+  }));
+  tick(100);
+  await reporter.handle(event("assistant.fusion_phase_activity", {
+    phaseId: "p1", activity: "model_output", totalResponseSizeBytes: 8192,
+  }));
+  tick(2_100);
+  await reporter.handle(event("assistant.fusion_phase_activity", {
+    phaseId: "stale", activity: "model_output", totalResponseSizeBytes: 16_384,
+  }));
+  await reporter.handle(event("assistant.fusion_phase_activity", {
+    phaseId: "p1", activity: "tool_started", toolCallId: "opaque",
+  }));
+
+  assert.deepEqual(logs.map(log => log.message), [
+    "⎇ **Lerna** · Phase HydraFusion started primary (solver) on Sol.",
+    "⎇ **Lerna** · Sol is streaming, 4 KiB received.",
+  ]);
+});
+
 test("streams reasoning deltas while a HydraFusion phase is active", async () => {
   const { logs, reporter } = fixture();
   await reporter.handle(event("assistant.fusion_phase_started", {
@@ -95,7 +122,7 @@ test("reports the safe reason for a failed Hydra phase", async () => {
 test("reports the final HydraFusion completion under the Route label like the rest of the route lifecycle", async () => {
   const { logs, reporter } = fixture();
   await reporter.handle(event("session.fusion_completed", {
-    durationMs: 140_200, finalSourceModel: "gpt-5.6-luna", usage: { totalNanoAiu: 800_000_000 },
+    durationMs: 140_200, finalSourceModel: "gpt-5.6-luna", totalNanoAiu: 800_000_000,
   }));
 
   assert.equal(logs[0].message, "⎇ **Lerna** · Route HydraFusion completed in 140.2s using Luna as the final source, 0.80 AIC.");

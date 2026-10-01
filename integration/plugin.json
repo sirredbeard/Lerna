@@ -1,6 +1,6 @@
 {
   "name": "lerna",
-  "version": "1.0.84",
+  "version": "1.0.85",
   "description": "Manage HydraFusion verbosity and routing",
   "author": { "name": "Hayden Barnes", "url": "https://github.com/sirredbeard" },
   "repository": "https://github.com/sirredbeard/Lerna",

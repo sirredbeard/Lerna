@@ -5,7 +5,7 @@ namespace Lerna;
 
 public static class Program
 {
-    public const string AppVersion = "1.0.83";
+    public const string AppVersion = "1.0.84";
 
     public static async Task<int> Main(string[] args)
     {

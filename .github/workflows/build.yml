@@ -76,6 +76,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -93,6 +96,6 @@ jobs:
             gh release upload "$TAG" lerna-* SHA256SUMS --clobber
           else
             gh release create "$TAG" lerna-* SHA256SUMS \
-              --verify-tag --prerelease --title "Lerna $TAG" \
-              --notes "Azure sign-in and native Copilot integration. Preview for GitHub Copilot CLI ${TAG#v}."
+              --target "$GITHUB_SHA" --prerelease --title "Lerna $TAG" \
+              --notes "Native routing integration and verbose HydraFusion reporting for GitHub Copilot CLI."
           fi

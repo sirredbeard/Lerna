@@ -1,12 +1,12 @@
 {
   "name": "lerna",
   "owner": { "name": "Hayden Barnes" },
-  "metadata": { "description": "Lerna", "version": "1.0.83" },
+  "metadata": { "description": "Lerna", "version": "1.0.84" },
   "plugins": [
     {
       "name": "lerna",
       "description": "Manage HydraFusion verbosity and routing",
-      "version": "1.0.83",
+      "version": "1.0.84",
       "source": "integration"
     }
   ]

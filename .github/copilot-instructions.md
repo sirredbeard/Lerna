@@ -24,8 +24,12 @@ Read `README.md` before changing behavior. It is the user-facing reference for i
 - Follow the surrounding JavaScript, C#, YAML, and JSON conventions. Use existing helpers rather than duplicating protocol or release logic.
 - Keep errors explicit. Do not swallow failures, return success-shaped fallbacks, or add broad catches that hide corrupted downloads, invalid manifests, failed handshakes, or release problems.
 - Validate downloaded binaries with the published `SHA256SUMS` before reuse or installation. Handle stale-cache replacement on Linux, macOS, and Windows.
+- Treat the GitHub release as the update authority. A cached binary may be used only after a transport-level HTTP retrieval failure, never after checksum, manifest, or release-validation failure. Preserve non-authentication HTTP errors when no cache can be used.
+- Keep the cache sidecar current: write or repair `<binary>.sha256` before returning a release-verified cached binary, and test the coordinator that chooses download versus cache, not only the cache helper.
+- When replacing a cached binary after a changed release checksum, handle existing destinations and Windows file-lock errors explicitly. Add a test that changes both checksum and bytes.
 - Do not hard-code a Copilot CLI version as a proxy for compatibility. Prefer the actual SDK handshake or capability result, and report a mismatch only when it causes a real failure.
 - Keep cloud-provider routing optional. Verbose reporting and native plugin operation must remain usable without routing configuration.
+- Release jobs must check out the triggering ref before reading versioned manifests. Keep plugin, native binary, release asset, checksum, and marketplace versions aligned.
 - Do not put credentials, tokens, deployment secrets, or machine-specific paths in source, tests, logs, fixtures, or documentation.
 - Update directly related tests and documentation. Do not make unrelated cleanup changes.
 

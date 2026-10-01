@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { checksumFor, githubDownload, installRelease, platformAsset } from "../integration/extensions/lerna/install.mjs";
+import { cachedBinary, checksumFor, ensureBinary, githubDownload, installRelease, platformAsset } from "../integration/extensions/lerna/install.mjs";
 
 test("platform selection rejects unsupported builds", () => {
   assert.equal(platformAsset("linux", "arm64").name, "lerna-linux-arm64");
@@ -59,7 +59,9 @@ test("release install verifies the release checksum before reusing the cache", a
   const options = { root, version: "1.0.83", platform: "linux", arch: "x64" };
   const path = await installRelease({ ...options, fetcher });
   assert.deepEqual(await readFile(path), bytes);
+  await rm(`${path}.sha256`);
   assert.equal(await installRelease({ ...options, fetcher }), path);
+  assert.equal(await readFile(`${path}.sha256`, "utf8"), `${hash}\n`);
   assert.equal(requests, 5);
 });
 
@@ -82,6 +84,50 @@ test("release install replaces a stale Windows cache after republishing", async 
   release = 1;
   assert.equal(await installRelease({ ...options, fetcher }), path);
   assert.deepEqual(await readFile(path), versions[1]);
+});
+
+test("a cached binary is reused when the release cannot be reached", async t => {
+  const root = await mkdtemp(join(tmpdir(), "lerna-install-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const bytes = Buffer.from("cached executable");
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  const directory = join(root, "1.0.84", "linux-x64");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "lerna"), bytes);
+  await writeFile(join(directory, "lerna.sha256"), `${hash}\n`);
+  const options = { root, version: "1.0.84", platform: "linux", arch: "x64" };
+  assert.equal(await ensureBinary("1.0.84", {
+    root,
+    fetcher: async () => new Response("unavailable", { status: 503 }),
+  }), join(directory, "lerna"));
+  await writeFile(join(directory, "lerna"), Buffer.from("tampered"));
+  await assert.rejects(cachedBinary(options), /does not match its recorded checksum/);
+});
+
+test("cache fallback preserves a non-authentication download error", async t => {
+  const root = await mkdtemp(join(tmpdir(), "lerna-install-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await assert.rejects(
+    ensureBinary("1.0.84", {
+      root,
+      fetcher: async () => new Response("unavailable", { status: 500 }),
+    }),
+    error => error.status === 500 && /HTTP 500/.test(error.message),
+  );
+});
+
+test("cache fallback does not hide release validation failures", async t => {
+  const root = await mkdtemp(join(tmpdir(), "lerna-install-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const bytes = Buffer.from("cached executable");
+  const directory = join(root, "1.0.84", "linux-x64");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "lerna"), bytes);
+  await writeFile(join(directory, "lerna.sha256"), `${createHash("sha256").update(bytes).digest("hex")}\n`);
+  await assert.rejects(
+    ensureBinary("1.0.84", { root, fetcher: async () => new Response("{bad json") }),
+    SyntaxError,
+  );
 });
 
 test("a bad checksum never creates an executable", async t => {

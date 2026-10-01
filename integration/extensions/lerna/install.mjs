@@ -143,9 +143,18 @@ export async function installRelease({ root, version, token, fetcher = fetch, pl
   const temporary = join(directory, `.download-${randomUUID()}`);
   try {
     await writeFile(temporary, bytes, { mode: 0o700, flag: "wx" });
-    try { await rename(temporary, binary); }
-    catch (error) {
-      if (!["EEXIST", "EPERM"].includes(error.code) || hash(await readFile(binary)) !== expected) throw error;
+    try {
+      await rename(temporary, binary);
+    } catch (error) {
+      if (!["EEXIST", "EPERM"].includes(error.code)) throw error;
+      if (hash(await readFile(binary)) !== expected) {
+        try { await rm(binary); }
+        catch (removeError) { if (removeError.code !== "ENOENT") throw removeError; }
+        try { await rename(temporary, binary); }
+        catch (replaceError) {
+          if (replaceError.code !== "EEXIST" || hash(await readFile(binary)) !== expected) throw replaceError;
+        }
+      }
     }
     await writeFile(`${binary}.sha256`, `${expected}\n`, { mode: 0o600 });
     return binary;

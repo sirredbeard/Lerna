@@ -49,5 +49,6 @@ For workflow changes, run `actionlint` when available. For installer changes, in
 
 - Explain the root cause, the user-visible effect, and the validation performed.
 - Address every review finding or explain why a finding does not apply. Do not leave known correctness issues unresolved.
+- After opening a PR, review Copilot comments, reply briefly inline, resolve addressed threads, and squash follow-up fixes into the existing PR commit before handoff.
 - Do not add a co-author trailer or co-author attribution to commits.
 - Keep release notes accurate and product-neutral. Do not add unrelated provider or marketing language.

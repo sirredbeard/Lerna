@@ -1,6 +1,6 @@
 ## Copilot CLI compatibility sync
 
-This branch was created by the scheduled Lerna compatibility check. It compares the newest GitHub Copilot CLI release against the HydraFusion allowlist used by Lerna and flags model drift.
+This branch was created by the scheduled Lerna compatibility check. It compares models mentioned by the newest GitHub Copilot CLI release against Lerna's reviewed model catalog and HydraFusion allowlist, then flags relevant changes for compatibility review.
 
 Please review the existing guidance in these files before changing the route map:
 
@@ -19,4 +19,4 @@ az cognitiveservices model list \
   --output table
 ```
 
-If the latest Copilot CLI release does not introduce a new HydraFusion-compatible model set, keep the current Lerna mapping as-is and refresh the release artifact. If it does, update the mapping and route settings to match the equivalent Azure deployments, then ask for review.
+The Copilot model picker and HydraFusion do not necessarily use the same model universe. Keep the current Lerna allowlist unless the `/model/fusion` planner accepts the new ID in a validated plan. If it does, update the mapping and route settings to match the equivalent Azure deployment, then ask for review.

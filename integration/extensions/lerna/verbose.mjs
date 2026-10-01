@@ -294,6 +294,13 @@ export function createVerboseReporter({
           await emit(`${activePhase.model} is streaming, ${bytesText(data.totalResponseSizeBytes)} received.`);
         }
         break;
+      case "assistant.fusion_phase_activity":
+        if (activePhase && data.phaseId === activePhase.id && data.activity === "model_output"
+            && now() - activePhase.lastBytesAt >= 2000) {
+          activePhase.lastBytesAt = now();
+          await emit(`${activePhase.model} is streaming, ${bytesText(data.totalResponseSizeBytes)} received.`);
+        }
+        break;
       case "assistant.fusion_phase_completed": {
         const usage = data.usage || {};
         const cache = Number(usage.cachedTokens || 0) ? `, ${tokensText(usage.cachedTokens)} cached` : "";
@@ -314,7 +321,7 @@ export function createVerboseReporter({
         activeFusion = false;
         activePhase = null;
         reasoning = "";
-        const aiCredits = aiCreditText(data.usage);
+        const aiCredits = aiCreditText(data.usage || data);
         await emit(`HydraFusion completed in ${durationText(data.durationMs)}${data.finalSourceModel ? ` using ${modelText(data.finalSourceModel)} as the final source` : ""}${aiCredits ? `, ${aiCredits}` : ""}.`, { ephemeral: false, label: "Route" });
         break;
       }

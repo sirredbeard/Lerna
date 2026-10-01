@@ -79,7 +79,7 @@ When Lerna starts, it checks whether GitHub Copilot CLI experimental features ar
 
 Verbose mode is on by default. You can turn it off with `/lerna verbose off`.
 
-Route, phase-start, and tool-operation messages appear immediately and remain in the timeline while verbose mode is on. Model reasoning is shown live during an active HydraFusion phase, with the completed reasoning retained when the SDK supplies it.
+Route, phase-start, and tool-operation messages appear immediately and remain in the timeline while verbose mode is on. Model reasoning is shown live during an active HydraFusion phase, with the completed reasoning retained when the SDK supplies it. Copilot CLI's content-safe phase activity also keeps the live byte count moving when private phase output is not exposed.
 
 Tool activity includes useful file names, search expressions, shell and git commands, URLs, and MCP queries. Lerna hides detail-free calls, duplicate searches, and prompt-like text accidentally appended to a search expression, and shows no more than four unique operations for each subagent. Completion totals still count all operations. Partial tool output and provider response bodies are not copied into the timeline, and obvious credential values are redacted.
 

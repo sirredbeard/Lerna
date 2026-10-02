@@ -44,16 +44,17 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_FOUNDRY_LOCATION: ${{ secrets.AZURE_FOUNDRY_LOCATION }}
         run: |
-          if [ -n "${AZURE_TENANT_ID:-}" ] && [ -n "${AZURE_CLIENT_ID:-}" ] && [ -n "${AZURE_CLIENT_SECRET:-}" ] && [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
+          if [ -n "${AZURE_TENANT_ID:-}" ] && [ -n "${AZURE_CLIENT_ID:-}" ] && [ -n "${AZURE_CLIENT_SECRET:-}" ] && [ -n "${AZURE_SUBSCRIPTION_ID:-}" ] && [ -n "${AZURE_FOUNDRY_LOCATION:-}" ]; then
             az login --service-principal --username "$AZURE_CLIENT_ID" --password "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
             az account set --subscription "$AZURE_SUBSCRIPTION_ID"
             az cognitiveservices model list \
-              --location YOUR-REGION \
+              --location "$AZURE_FOUNDRY_LOCATION" \
               --query "[?name=='gpt-5.6-sol' || name=='gpt-5.6-luna' || name=='gpt-5.6-terra' || name=='claude-opus-5'].{model:name,format:format,version:version,skus:skus[].name}" \
               --output table
           else
-            echo "Azure read-only credentials are not configured; skip the live catalog check."
+            echo "Azure read-only credentials or the Foundry location are not configured; skip the live catalog check."
           fi
 
       - name: Prepare a compatibility PR when drift is detected

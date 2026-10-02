@@ -1,189 +1,329 @@
-# HydraFusion reference log
+# HydraFusion field reference
 
-This is not official HydraFusion documentation. There is no public source repo for it, at least not one that is stable or usable as the ground truth for production work. This file is the local reference for what we know, what we have observed, what we route, what we pay, and what we should keep watching.
+HydraFusion is a GitHub Copilot research preview, not a public API. There is no public source repo or versioned HydraFusion contract that Lerna can treat as ground truth.
 
-The goal is simple: keep one place in the repo where we track the actual contract, the Azure side, the Copilot side, and the cost math without pretending that this is a formal API spec.
+This is the next best thing: a dated record of the public claims, the Copilot CLI behavior we can observe, the Microsoft Foundry deployments we actually run, and the cost decisions behind the route.
 
-## The short version
+Last verified: October 2, 2026 UTC
 
-HydraFusion is a Copilot-side planner. It chooses a model from a fixed allowlist, then the Lerna extension can answer a mapped model call against Microsoft Foundry while leaving the planner and session flow on GitHub Copilot.
+Copilot CLI: `1.0.91`
 
-The practical contract we have observed is:
+Azure resource: private Microsoft Foundry account
 
-- HydraFusion picks the model ID, not us.
-- Lerna only sees the selected model after the planner has already chosen it.
-- Lerna may rewrite only the request for a mapped deployment.
-- The Azure side must match the exact model behind the selected HydraFusion ID.
-- Prompt caching is the real cost lever on the Azure leg.
-- Copilot AI credits are still real, and unmapped work still burns them.
+## Evidence labels
 
-## What is discoverable
+Every important claim in this file should fit one of these:
 
-This is the useful data path we have found:
+| Label | Meaning |
+| --- | --- |
+| Official | Published by GitHub or Microsoft. |
+| Live configuration | Read from the authenticated Azure resource or local Lerna settings. |
+| Observed | Reproduced by Lerna against a specific Copilot CLI and saved in this repo. |
+| Inference | A working conclusion from the evidence, not a published contract. |
 
-1. Copilot CLI exposes HydraFusion events and model IDs.
-2. Lerna can observe when HydraFusion starts, resolves, phases, and completes.
-3. Copilot local usage rows show mapped model calls and the AI credits that were not spent on the BYOK leg.
-4. Azure Monitor shows actual model requests, token counts, cache reads, cache writes, latency, and errors.
-5. The Azure account itself shows which deployments exist, which model versions are live, and what capacity is set.
+HydraFusion can change underneath us. The label and verification date matter.
 
-That is enough to track the feature over time without reading hidden provider code.
+## What GitHub says HydraFusion does
 
-## Known model IDs and routing boundaries
+GitHub describes HydraFusion as a runtime orchestrator that chooses one of three patterns for each request:
 
-The current HydraFusion allowlist in this repo is the six-model set Lerna is built around:
+| Pattern | Public behavior |
+| --- | --- |
+| Single | One model solves the task directly. |
+| Cascade | An efficient model drafts, then a quality gate accepts the result or escalates to a stronger model. |
+| Critique | One model drafts, a read-only model from another family reviews, then the drafting model revises once. |
 
-| HydraFusion model ID | Azure equivalent | Lerna wire | Status |
+GitHub also says HydraFusion uses complete accounting across drafting, critique, revision, escalation, retry, and fallback. It does not say the quality-gate threshold, routing weights, model-selection rules, or fallback policy are a stable public contract.
+
+GitHub's benchmark result is useful context, not a promise for Lerna workloads. The September 2026 announcement reported 67% lower estimated cost and 4.9 percentage points better verified quality than Claude Opus 5 on TerminalBench 2.1. It also reported 36% lower cost with 1.5 points lower quality on DeepSWE, and 65% lower cost with 0.1 points lower quality on CheckpointBench.
+
+Source: [Project HydraFusion: Frontier quality via multi-model orchestration](https://github.blog/ai-and-ml/github-copilot/project-hydrafusion-frontier-quality-via-multi-model-orchestration/), accessed October 1, 2026.
+
+## The contract Lerna has observed
+
+The current working request path is:
+
+```text
+Copilot CLI
+  -> GitHub's /model/fusion planner
+  -> a HydraFusion plan naming a model and pattern
+  -> Lerna's request interceptor
+  -> the matching Microsoft Foundry deployment, when mapped
+  -> Copilot CLI's normal session and tool loop
+```
+
+Observed on Copilot CLI `1.0.91`:
+
+- HydraFusion picks the workflow and model ID. Lerna does not.
+- Lerna receives the plan before the mapped model inference call.
+- Lerna can route only a model ID HydraFusion already accepted.
+- Lerna must preserve model identity. A deployment alias is fine, a different underlying model is not.
+- OpenAI models arrive on the Responses wire.
+- Claude arrives on the Anthropic Messages wire.
+- Planner work, unmapped models, MAI models, explicit subagents, compaction, retries, and other Copilot-owned work can still consume GitHub AI credits.
+- The internal quality gate and routing policy remain opaque.
+
+The strongest saved reproduction is [`verified-run.json`](verified-run.json). The deeper request and event notes are in [`RESEARCH.md`](../RESEARCH.md).
+
+## Known HydraFusion model boundary
+
+Lerna currently accepts the six model IDs verified against the Copilot CLI planner:
+
+| HydraFusion model ID | Foundry equivalent | Wire | Lerna behavior |
 | --- | --- | --- | --- |
-| `gpt-5.6-sol` | same model | OpenAI Responses | routed via Azure when mapped |
-| `gpt-5.6-luna` | same model | OpenAI Responses | routed via Azure when mapped |
-| `gpt-5.6-terra` | same model | OpenAI Responses | routed via Azure when mapped |
-| `claude-opus-5` | same model | Anthropic Messages | routed via Azure when mapped |
-| `mai-code-1.1-flash` | none | Copilot only | not routed in Lerna |
-| `mai-code-1-flash-picker` | none | Copilot only | not routed in Lerna |
+| `gpt-5.6-sol` | Same model | OpenAI Responses | Routable when mapped |
+| `gpt-5.6-luna` | Same model | OpenAI Responses | Routable when mapped |
+| `gpt-5.6-terra` | Same model | OpenAI Responses | Routable when mapped |
+| `claude-opus-5` | Same model | Anthropic Messages | Routable when mapped |
+| `mai-code-1.1-flash` | None | Copilot | Never routed |
+| `mai-code-1-flash-picker` | None | Copilot | Never routed |
 
-The important part is that Lerna does not add models to HydraFusion. It only forwards a selected HydraFusion model to a matching Foundry deployment.
+This is an observed allowlist, not a GitHub API promise. `.github/workflows/copilot-cli-sync.yml` checks new Copilot CLI releases every day, compares model mentions against `.github/copilot-cli-state.json`, and opens review work when the known model set moves.
 
-## Current Azure deployment state
+Release notes are not enough by themselves. After a Copilot CLI update, the planner probe still needs to confirm that HydraFusion accepts the model and emits the expected plan and phase events.
 
-This account is live and authenticated under the Visual Studio Enterprise subscription.
+## GitHub AI credits
 
-Resource name: `YOUR-FOUNDRY-RESOURCE`
-Resource group: `YOUR-RESOURCE-GROUP`
-Region: `YOUR-REGION`
-Account kind: `YOUR-ACCOUNT-KIND`
+Copilot Max costs $100 per month and currently includes 20,000 GitHub AI credits: 10,000 base credits and a 10,000-credit flex allotment. One AI credit equals $0.01. Included credits reset at 00:00 UTC on the first day of each month and do not carry over.
 
-Current deployments recorded by Azure:
+Copilot CLI usage is billed from the model and token mix. Agentic work can make several model calls in one task. GitHub gives paid plans a 10% model-cost discount when using Auto model selection, however HydraFusion should not be assumed to receive that discount unless GitHub says so.
 
-| Deployment | Model | Format | Version | Capacity | Provisioning |
-| --- | --- | --- | --- | ---: | --- |
-| `gpt-5.6-terra` | `gpt-5.6-terra` | OpenAI | `2026-07-09` | 1000 | Succeeded |
-| `claude-sonnet-4-6` | `claude-sonnet-4-6` | Anthropic | `1` | 80 | Succeeded |
-| `gpt-5.6-sol` | `gpt-5.6-sol` | OpenAI | `2026-07-09` | 1000 | Succeeded |
-| `gpt-5.6-luna` | `gpt-5.6-luna` | OpenAI | `2026-07-09` | 1000 | Succeeded |
-| `claude-opus-5` | `claude-opus-5` | Anthropic | `2` | 40 | Succeeded |
+Source: [Usage-based billing for individuals](https://docs.github.com/en/copilot/concepts/billing-and-usage/individuals/billing), accessed October 1, 2026.
 
-This is the real deployment inventory we should compare against the Copilot model IDs. The `claude-sonnet-4-6` deployment is present, but it is not a HydraFusion model ID in the current allowlist. It is still worth tracking because it is a real Azure deployment and a possible test lane for Anthropic routing or future route experiments.
+Lerna does not make the entire turn free. The saved September 7 audit found that mapped model rows recorded zero GitHub AI credits, while surrounding unmapped Copilot activity remained billable. That is observed behavior on Copilot CLI `1.0.83`, not a billing guarantee.
 
-## Observed cost and burn data
+## Current Foundry inventory
 
-The strongest evidence in this repo is the 12-hour audit saved at `experiments/observed-usage-2026-09-07.json`.
+The authenticated resource is in a private Azure subscription.
 
-The aggregate result was:
+| Deployment | Model version | Format | SKU | Capacity | Upgrade policy | RAI policy | Active Lerna route |
+| --- | --- | --- | --- | ---: | --- | --- | --- |
+| `gpt-5.6-sol` | `2026-07-09` | OpenAI | `GlobalStandard` | 1000 | New default | `Microsoft.DefaultV2` | No |
+| `gpt-5.6-luna` | `2026-07-09` | OpenAI | `GlobalStandard` | 1000 | New default | `Microsoft.DefaultV2` | Yes |
+| `gpt-5.6-terra` | `2026-07-09` | OpenAI | `GlobalStandard` | 1000 | New default | `Microsoft.DefaultV2` | Yes |
+| `claude-opus-5` | `2` | Anthropic | `GlobalStandard` | 40 | New default | `Microsoft.DefaultV2` | Yes |
+| `claude-sonnet-4-6` | `1` | Anthropic | `GlobalStandard` | 80 | New default | `Microsoft.DefaultV2` | No |
 
-- 729 mapped BYOK calls
-- 62.75M input tokens
-- 58.29M cache-read tokens
-- 4.45M cache-write tokens
-- 213,928 output tokens
-- 92.89% weighted cache-read rate
-- Azure estimated spend: about $72.33
-- same work without cache: about $283.27
-- prompt caching avoided roughly $210.94
-- equivalent Copilot list cost: about $57.31
+Provisioning state was `Succeeded` for all five deployments on October 2, 2026 UTC.
 
-So the observed pattern is not 'Azure is always cheaper.' It is 'Azure can be a good home for the Hydra model leg when we want to preserve Copilot credits and use Azure credits or internal chargeback.'
+The number in the capacity column is throughput quota, not prepaid model usage. Lowering `GlobalStandard` capacity can release quota or force earlier throttling, however it does not lower token prices or create an idle-charge saving.
 
-The model-level result is the part that matters most:
+The three GPT-5.6 deployments currently consume all 1,000K TPM of the subscription's Global Standard quota for each model. Opus exposes 40 RPM and 40,000 TPM. No recent evidence says Lerna needs more.
 
-| Model | Azure est. cost | Copilot list cost | Notes |
-| --- | ---: | ---: | --- |
-| `gpt-5.6-sol` | $71.36 | $56.33 | Sol stayed ~26.7% more expensive on Azure after cache effects |
-| `gpt-5.6-luna` | $0.55 | $0.55 | basically matching |
-| `gpt-5.6-terra` | $0.017 | $0.017 | very little traffic |
-| `claude-opus-5` | $0.40 | $0.40 | matching at list rate |
+## September 2026 spend review
 
-The cost story is more nuanced than a blanket 'BYOK always wins.' The real win is preserving GitHub AI credits on the Hydra leg while spending Azure credits for the mapped model work, especially when the route is cache-heavy and you want to keep Copilot credit burn down.
+The original September 7 audit got the routing and cache behavior right, however the provisional cost math did not hold up against the settled bills.
 
-## Routing details we should keep stable
+The 12-hour observation still records 729 mapped calls, 62.75M input tokens, 58.29M cache-read tokens, 4.45M cache-write tokens, and 213,928 output tokens. The 92.89% weighted cache-read rate is still useful.
 
-The safe working setup is:
+The original $72.33 Azure estimate is superseded. It charged GPT cache-write tokens as both ordinary input and cache writes, then omitted Microsoft Marketplace charges for Claude.
 
-- keep HydraFusion enabled inside Copilot CLI
-- keep Lerna's Azure route mapping to exact Hydra model IDs only
-- keep the deployment name and endpoint aligned to the mapped model
-- keep the Azure endpoint as the bare resource base and let Lerna append the correct path
-- keep a single stable `prompt_cache_key` on mapped Responses requests
-- keep implicit cache behavior unless we have a good reason to move to something more explicit
-- let Copilot keep doing planner work and tool orchestration
+Settled September cost:
 
-What we should avoid:
+| Ledger | Gross usage | Included discount | Net usage | Fixed fee | September total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| GitHub Copilot | 43,665.46 AIC / $436.65 | 19,998.84 AIC / $199.99 | 23,666.62 AIC / $236.67 | $100.00 | $336.67 |
+| Microsoft Foundry | $89.12 | N/A | $89.12 | $0.00 | $89.12 of Azure consumption |
 
-- remapping Hydra IDs to a different underlying model
-- changing the route in a way that breaks the wire contract
-- adding extra provider-specific rewrite logic without live verification
-- routing extra non-Hydra work through Azure just because it is convenient
-- assuming one model's cache profile is the same as another model's
+The Azure total was $63.12 on Foundry model meters and $26.00 on Microsoft Marketplace Claude meters. Whether that became cash spend depends on the private subscription's remaining credits.
 
-## How to track changes over time
+Azure model detail:
 
-This repo is already the right place to keep the audit trail. The pattern should be:
+| Model group | Settled September cost |
+| --- | ---: |
+| `gpt-5.6-sol` | $62.35 |
+| `gpt-5.6-luna` | $0.64 |
+| `gpt-5.6-terra` | $0.12 |
+| Claude deployments | $26.00 |
 
-- keep a dated JSON snapshot in `experiments/`
-- keep one markdown record with the current state and decisions in `experiments/hydrafusion-reference.md`
-- keep notes in `RESEARCH.md` for the deeper reasoning and the why behind the route choice
-- keep one 'current Azure inventory' snapshot after any deployment change or regional move
+September 7 alone carried $88.92 of the Azure total and 15,391.13 gross GitHub AI credits, or $153.91. Those are UTC-day totals, not the same request set as the original 12-hour audit.
 
-A good file naming pattern is:
+GitHub's billing API does not return zero-priced BYOK calls. The local Copilot ledger remains the evidence that specific mapped rows recorded zero AI credits, while the server-side API now confirms the larger monthly result: all 20,000 included credits were consumed and another 23,666.62 credits were billable.
 
-- `experiments/observed-usage-YYYY-MM-DD.json`
-- `experiments/hydrafusion-reference.md`
-- plus a short note or checklist when a deployment, quota, or model version changes
+The full settled review is in [`spend-review-2026-09.json`](spend-review-2026-09.json). The original observation is preserved in [`observed-usage-2026-09-07.json`](observed-usage-2026-09-07.json), with the provisional estimates marked as superseded.
 
-The main things to compare over time:
+## The cost policy
 
-- Copilot CLI version
-- HydraFusion allowlist and experimental flags
-- selected model and route pattern
-- Azure resource name, region, deployment versions, and SKU
-- token mix: input, output, cache read, cache write
-- hit rate and write rate
-- Azure cost, copilot cost, and the delta
-- whether the route is still preserving GitHub AI credits
+There are two budgets here, and optimizing one can make the other worse:
 
-## What improves efficiency for coding
+1. GitHub cash and AI credits.
+2. Azure consumption against subscription credits.
 
-These are the optimizations that matter the most to us right now:
+The active Lerna settings still route Luna, Terra, and Opus. Sol is deployed but unmapped. That matches the older policy and the Copilot review on #6 was correct to flag any document claiming otherwise.
 
-1. Keep mapped Hydra calls on Azure and off Copilot when we want to spend Azure credits instead of GitHub credits.
-2. Keep route selection limited to the exact six Hydra IDs. Do not chase provider-quirky new model IDs unless Copilot itself states they are valid.
-3. Keep cache behavior stable. The measured work showed a strong cache hit rate, and the real savings came from that reuse.
-4. Do not push every subagent, extra reasoning pass, or explicit Sonnet/Opus agent through the Azure route. Those still burn GitHub credits if they are not mapped.
-5. Keep the same-model mapping. The good path is exact model identity, not a 'close enough' alias.
-6. Monitor the actual Azure spending and the actual Copilot usage ledger together. One side alone lies.
+The settled month changes the recommendation. September used 218% of the Copilot Max allowance and produced $236.67 in additional GitHub usage. When Azure credits are available, I would route Sol too:
 
-There is one thing I would not do: turn off caching globally just because a small Opus sample was a write-heavy miss. The evidence here says the stable key and implicit cache mode were the win. We should optimize around that, not around a model-specific panic.
+- Route Sol, Luna, Terra, and Opus to Foundry while the Azure credit balance can absorb the usage.
+- Leave the two MAI models on Copilot because no same-model Foundry deployment exists.
+- Revert Sol to Copilot when Azure credits are exhausted and minimizing total economic consumption matters more than preserving GitHub AI credits.
+- Keep the same-model boundary. Do not substitute a cheaper model behind a HydraFusion ID.
 
-## The optimization playbook
+This is a recommendation, not the current local setting.
 
-For this repo and this Azure account, the sensible baseline is:
+Lerna does not automate the decision today. A budget-aware route policy can use GitHub's supported `ai_credit/usage` endpoint, a user-selected GitHub reserve, an Azure monthly ceiling, and an explicit fallback when either ledger is unavailable. It should not depend on Copilot's undocumented local database.
 
-- remain on the exact Hydra model IDs already accepted by Copilot
-- keep `gpt-5.6-sol`, `gpt-5.6-luna`, `gpt-5.6-terra`, and `claude-opus-5` mapped to the matching Azure deployments
-- keep `claude-sonnet-4-6` in the account for future experiments, but do not treat it as a Hydra model unless the planner accepts it
-- use Azure spending for the mapped route, not for every model call in the session
-- keep the cache key stable and avoid session-scoped junk in the key material
-- watch the prompt-cache hit rate before changing cache policy
+## Foundry tuning assessment
 
-If the goal is 'reduce GitHub AIC burn while not spending crazy money', then the best tradeoff is not 'route everything to Azure'. It is 'route the mapped Hydra leg to Azure while keeping the nonmapped tool and subagent overhead on Copilot, and keep caching healthy.'
+### Keep `GlobalStandard`
 
-## What to watch next
+`GlobalStandard` is the right deployment type for this bursty interactive workload. Microsoft routes it through global infrastructure for availability, and it remains pay-as-you-go.
 
-The next changes to track are:
+`DataZoneStandard` is a residency choice, not a coding-quality optimization.
 
-- new Copilot CLI builds that add or change HydraFusion model IDs
-- model availability and quota shifts in Azure regions
-- pricing changes in GitHub Copilot and Microsoft Foundry
-- any change in the route that materially affects cache hit rate
-- any new deployment names or model versions we should track as candidates
+Provisioned throughput is a poor fit for this account. The workload is intermittent, there is no sustained utilization case, and the subscription currently uses zero provisioned capacity. Paying for reserved throughput would probably increase spend.
 
-If HydraFusion changes, this file moves with it. If Azure changes, the deployment table moves too. If the cost profile changes, the numbers move. That is the whole point.
+Source: [Microsoft Foundry Models quotas and limits](https://learn.microsoft.com/en-us/azure/foundry/foundry-models/quotas-limits), accessed October 1, 2026.
 
-### Repo references
+### Keep the cache key and implicit cache mode
 
-- `README.md`
-- `RESEARCH.md`
-- `experiments/observed-usage-2026-09-07.json`
-- `experiments/verified-run.json`
+Prompt caching is the largest verified Azure optimization in Lerna.
 
-Nothing here is a substitute for the real service contract, but it is the best living reference we have without a public HydraFusion repo.
+Microsoft documents that GPT-5.6 caching:
+
+- needs at least 1,024 tokens and an identical first 1,024-token prefix
+- can charge for cache writes
+- discounts cache reads
+- benefits from a stable `prompt_cache_key`
+- defaults to implicit mode
+- disables caching in explicit mode when no explicit breakpoint is supplied
+
+Lerna adds a stable, scoped `prompt_cache_key` only when the caller did not supply one. It does not guess an explicit breakpoint. September's settled GPT meters cost $63.12. Repricing the same 77.88M prompt tokens as ordinary uncached input would have cost about $345.24 with the billed output unchanged, a $282.12 difference.
+
+Source: [Prompt caching with Azure OpenAI in Microsoft Foundry Models](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/prompt-caching), updated August 11, 2026.
+
+The practical behavior is simple: resume a useful session when the context is still relevant. A fresh one-turn session pays to rebuild a large prefix and may not live long enough to recover the write.
+
+### Slow down automatic model upgrades
+
+All five deployments currently use `OnceNewDefaultVersionAvailable`.
+
+That is convenient, however it can change coding behavior before Lerna has verified the new model version against tool use, long contexts, Responses item normalization, caching, and HydraFusion's planner.
+
+I would change routed deployments to `OnceCurrentVersionExpired`, after confirming Azure exposes that option for each provider. This keeps security and retirement handling automatic while giving us a test window before the default moves.
+
+I would not use `NoAutoUpgrade`. Microsoft documents that an opted-out deployment stops accepting requests when the selected model version retires.
+
+Source: [Model versioning in Microsoft Foundry Models](https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/model-versions), accessed October 1, 2026.
+
+### Do not tune content filters for cost
+
+The deployments use `Microsoft.DefaultV2`. There is no evidence that replacing the default RAI policy would materially reduce token spend or improve coding quality, and a custom policy creates another contract Lerna would need to test.
+
+Keep the default unless a real coding request is blocked incorrectly and the exact request can be reproduced.
+
+### Add guardrails around spend, not more request logging
+
+Azure Monitor already keeps platform metrics without a diagnostic setting. This account exposes requests, input and output tokens, cache reads, cache-match rate, time to first token, tokens per second, status code, spillover, and service-tier dimensions.
+
+The resource currently has:
+
+- no diagnostic setting
+- no metric alerts
+- no resource-group budget
+
+I would add a monthly resource-group budget and a small set of metric alerts for repeated HTTP 429/5xx responses and a material cache-hit collapse.
+
+I would not enable Log Analytics just to keep counting tokens. Microsoft notes that diagnostic routing and Log Analytics add cost. The platform metrics plus dated snapshots are enough until we need longer retention or KQL correlation.
+
+Source: [Monitor Azure OpenAI in Microsoft Foundry Models](https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/monitor-openai), accessed October 1, 2026.
+
+Azure Cost Management returned HTTP 429 during the original same-day audit. The October review retrieved settled September `ActualCost`, including the separate Microsoft Marketplace Claude meters.
+
+## Setup assessment
+
+The `/lerna` setup is smaller than the README can make it look. It:
+
+1. Checks the Microsoft device-code URL and user code.
+2. Signs into the configured Entra application.
+3. Reports whether routes already exist.
+4. Enables configured routes.
+5. Selects HydraFusion when the host allows it.
+
+It does not create Foundry resources, discover deployments, assign RBAC, or write model mappings.
+
+`tests/setup.test.mjs` covers experimental-feature enablement, legacy setting overrides, refusal paths, HydraFusion switching, Microsoft URL validation, login without configured routes, enable/disable, verbose settings, status formatting, and logout order.
+
+The missing test is a live read-only doctor pass against ARM and the configured deployment endpoints. I think that should be a separate command, not more cloud mutation inside `/lerna`: confirm the resource exists, deployment model equals the HydraFusion key, wire and endpoint match, inference RBAC works, and the model returns a bounded test response.
+
+## Tracking procedure
+
+Run this after a Copilot CLI update, a Foundry deployment change, a pricing change, or an unexplained routing difference.
+
+### 1. Record the Copilot side
+
+- Record the Copilot CLI version.
+- Review the public release notes and HydraFusion announcement.
+- Compare the bundled model list with `.github/copilot-cli-state.json`.
+- Run the planner probe for every Lerna allowlisted model.
+- Record the plan version, pattern, phase events, chosen model, and fallback behavior.
+- Save only nonsecret summaries. Do not commit prompts, access tokens, session tokens, or provider response bodies.
+
+### 2. Record the Azure inventory
+
+```powershell
+$resourceGroup = "YOUR-RESOURCE-GROUP"
+$accountName = "YOUR-FOUNDRY-RESOURCE"
+
+az cognitiveservices account deployment list `
+  --resource-group $resourceGroup `
+  --name $accountName `
+  --query "[].{deployment:name,model:properties.model.name,version:properties.model.version,format:properties.model.format,sku:sku.name,capacity:sku.capacity,upgrade:properties.versionUpgradeOption,rai:properties.raiPolicyName,state:properties.provisioningState}" `
+  --output table
+```
+
+Also record the account's `AI Foundry API` endpoint, region, deployment type, quota assignment, and whether the deployment is present in local Lerna settings.
+
+### 3. Record runtime metrics
+
+Use one fixed UTC window and collect:
+
+- model requests by deployment and status
+- input, output, cache-read, and cache-write tokens
+- cache-match rate
+- time to first token and tokens per second
+- HTTP 429, 5xx, spillover, and service-tier dimensions
+- GitHub AI credits from Copilot's supported usage view
+- Azure actual cost after billing data settles
+
+Do not compare a rolling Azure window with a calendar GitHub window and call the difference savings. The dates have to match.
+
+### 4. Update this file
+
+Update:
+
+- `Last verified`
+- known model boundary
+- live deployment table
+- active route table
+- observed cost table
+- decisions and caveats
+- the change log below
+
+Commit the dated raw snapshot separately when it adds evidence. This file should remain the readable current state.
+
+## Change log
+
+| Date | Change | Evidence | Decision |
+| --- | --- | --- | --- |
+| 2026-09-07 | Measured 729 mapped calls and a 92.89% weighted cache-read rate. | Observed usage snapshot | Keep the stable cache key and implicit mode. |
+| 2026-10-01 | GitHub published HydraFusion's Single, Cascade, and Critique patterns and complete-accounting principle. | Official GitHub announcement | Track every workflow leg, not only the final model. |
+| 2026-10-02 | Verified five Foundry deployments and three active Lerna routes. | Live Azure and local configuration | Route Luna, Terra, and Opus; keep Sol ready but unmapped. |
+| 2026-10-02 | Settled September Azure cost was $89.12; GitHub reported 43,665.46 gross credits and 23,666.62 net credits after the included allowance. | Azure Cost Management and GitHub billing API | Recommend adding Sol to Foundry while Azure credits remain. |
+| 2026-10-02 | Repriced settled GPT meters at ordinary uncached input rates. | Azure Cost Management billed quantities | Keep prompt caching; September GPT savings were about $282.12. |
+| 2026-10-02 | Found no diagnostic setting, metric alert, or resource-group budget. | Live Azure configuration | Add a budget and narrow metric alerts before adding paid log retention. |
+
+## Primary sources and repo evidence
+
+- [GitHub HydraFusion announcement](https://github.blog/ai-and-ml/github-copilot/project-hydrafusion-frontier-quality-via-multi-model-orchestration/)
+- [GitHub AI-credit billing for individuals](https://docs.github.com/en/copilot/concepts/billing-and-usage/individuals/billing)
+- [GitHub billing usage REST API](https://docs.github.com/en/rest/billing/usage)
+- [Microsoft Foundry prompt caching](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/prompt-caching)
+- [Microsoft Foundry quotas and limits](https://learn.microsoft.com/en-us/azure/foundry/foundry-models/quotas-limits)
+- [Microsoft Foundry model versioning](https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/model-versions)
+- [Azure OpenAI monitoring](https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/monitor-openai)
+- [`RESEARCH.md`](../RESEARCH.md)
+- [`observed-usage-2026-09-07.json`](observed-usage-2026-09-07.json)
+- [`spend-review-2026-09.json`](spend-review-2026-09.json)
+- [`verified-run.json`](verified-run.json)
+
+This is not the service contract. It is the field notebook.

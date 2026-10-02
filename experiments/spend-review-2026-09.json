@@ -1,0 +1,122 @@
+{
+  "reviewedAtUtc": "2026-10-02T02:00:00Z",
+  "period": {
+    "startUtc": "2026-09-01T00:00:00Z",
+    "endUtc": "2026-10-01T00:00:00Z"
+  },
+  "privacy": {
+    "azureResourceName": "redacted",
+    "azureResourceGroup": "redacted",
+    "azureRegion": "redacted",
+    "azureAccountKind": "redacted",
+    "azureSubscriptionName": "redacted"
+  },
+  "azure": {
+    "source": "Azure Cost Management ActualCost, queried with Azure CLI after the billing period settled",
+    "currency": "USD",
+    "totalActualCost": 89.11817444,
+    "foundryModelMeters": 63.11924944,
+    "marketplaceClaudeMeters": 25.998925,
+    "meters": [
+      {
+        "model": "gpt-5.6-sol",
+        "cachedInputTokensMillions": 63.380608,
+        "cacheWriteTokensMillions": 3.701061,
+        "uncachedInputTokensMillions": 0.207729,
+        "outputTokensMillions": 0.216474,
+        "actualCost": 62.35480025
+      },
+      {
+        "model": "gpt-5.6-luna",
+        "cachedInputTokensMillions": 8.925222,
+        "cacheWriteTokensMillions": 1.555379,
+        "uncachedInputTokensMillions": 0.04845,
+        "outputTokensMillions": 0.055041,
+        "actualCost": 0.64308839
+      },
+      {
+        "model": "gpt-5.6-terra",
+        "cachedInputTokensMillions": 0.015744,
+        "cacheWriteTokensMillions": 0.037616,
+        "uncachedInputTokensMillions": 0.003542,
+        "outputTokensMillions": 0.001424,
+        "actualCost": 0.1213608
+      },
+      {
+        "model": "Claude deployments",
+        "consumptionUnits": 2599.8925,
+        "actualCost": 25.998925,
+        "note": "Microsoft Marketplace reports Claude consumption units, not the GPT token meter categories."
+      }
+    ],
+    "gptPromptCache": {
+      "actualCost": 63.11924944,
+      "estimatedCostWithoutCaching": 345.2439614,
+      "estimatedSavings": 282.12471196,
+      "method": "Reprice all billed GPT prompt tokens at each model's ordinary input meter, preserve billed output cost, and compare with settled ActualCost.",
+      "scope": "GPT deployments only; Claude Marketplace consumption units are excluded."
+    },
+    "visualStudioCredits": {
+      "applied": "unknown",
+      "note": "ActualCost measures Azure consumption. Cash owed depends on the subscription credit balance and invoice."
+    }
+  },
+  "github": {
+    "source": "GET /users/{username}/settings/billing/ai_credit/usage using GitHub API version 2026-03-10",
+    "currency": "USD",
+    "copilotMaxMonthlyFee": 100.0,
+    "grossAiCredits": 43665.4571665,
+    "grossUsageValue": 436.654571665,
+    "includedCreditDiscount": 19998.841166,
+    "includedCreditValue": 199.98841166,
+    "netAiCredits": 23666.6160005,
+    "netUsageCost": 236.666160005,
+    "subscriptionPlusNetUsage": 336.666160005,
+    "largestGrossModels": [
+      {
+        "model": "Claude Sonnet 5",
+        "grossAiCredits": 12599.77817,
+        "netAiCredits": 8752.07847
+      },
+      {
+        "model": "Auto: Claude Opus 5",
+        "grossAiCredits": 11633.5188025,
+        "netAiCredits": 4110.2997775
+      },
+      {
+        "model": "GPT-5.6 Sol",
+        "grossAiCredits": 5086.67528,
+        "netAiCredits": 4760.64842
+      },
+      {
+        "model": "GPT-6 Astra",
+        "grossAiCredits": 4192.27685,
+        "netAiCredits": 4192.27685
+      },
+      {
+        "model": "Grok 4.5",
+        "grossAiCredits": 4267.3564,
+        "netAiCredits": 469.0642
+      }
+    ]
+  },
+  "september7": {
+    "azureActualCostForUtcDay": 88.92259882,
+    "githubGrossAiCreditsForUtcDay": 15391.134161,
+    "githubGrossUsageValueForUtcDay": 153.91134161,
+    "note": "Azure Cost Management is daily, while the original Lerna audit covered a 12-hour window. These values cannot be treated as the same request set."
+  },
+  "combined": {
+    "economicConsumptionIncludingAzureCredits": 425.784334445,
+    "cashIfAzureCreditsCoveredAllAzureUsage": 336.666160005,
+    "note": "The combined figure adds Azure ActualCost, the Copilot Max fee, and GitHub net AI-credit usage. It is not a model-for-model comparison."
+  },
+  "correctionsToObservedUsage20260907": [
+    "The $72.33 Azure figure was an estimate, not settled cost.",
+    "The estimate double-counted GPT cache-write tokens by charging both ordinary input and the cache-write meter.",
+    "The estimate omitted Microsoft Marketplace charges for Claude deployments.",
+    "The $210.94 cache-savings estimate is superseded by $282.12 for all September GPT usage.",
+    "GitHub's billing API confirms September exhausted almost exactly 20,000 included AI credits and reported 23,666.62 net additional credits.",
+    "GitHub's API does not return zero-priced BYOK calls, so the claim that a specific mapped request used zero AI credits still depends on the local Copilot usage ledger."
+  ]
+}

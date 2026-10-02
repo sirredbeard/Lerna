@@ -1,4 +1,5 @@
 {
+  "status": "Historical 12-hour observation. Cost estimates are superseded by spend-review-2026-09.json.",
   "window": {
     "startUtc": "2026-09-07T02:38:42Z",
     "endUtc": "2026-09-07T14:38:42Z",
@@ -6,9 +7,9 @@
   },
   "environment": {
     "copilotCliVersion": "1.0.83",
-    "azureResource": "YOUR-FOUNDRY-RESOURCE",
-    "azureRegion": "YOUR-REGION",
-    "azureSku": "S0",
+    "azureResource": "redacted",
+    "azureRegion": "redacted",
+    "azureSku": "redacted",
     "deploymentSku": "GlobalStandard"
   },
   "method": {
@@ -114,10 +115,11 @@
   },
   "conclusions": [
     "The stable Lerna prompt_cache_key is working: 92.89% of mapped input tokens were cache reads.",
-    "Caching reduced estimated Azure list cost by about $210.94 during the window, mostly on Sol.",
-    "Azure Sol remained about 26.7% more expensive than equivalent Copilot list pricing after cache effects; Luna, Terra, and Opus used matching list rates.",
+    "The original Azure and cache-savings estimates used provisional list-rate math and must not be treated as settled cost.",
+    "The original estimate double-counted GPT cache writes and omitted Microsoft Marketplace Claude charges.",
     "Terra and Opus did not yet amortize their cache writes in this small sample.",
-    "The mapped BYOK rows recorded zero GitHub AI credits. Other Copilot model, subagent, compaction, and MAI activity in the same sessions remained billable.",
+    "The mapped BYOK rows recorded zero GitHub AI credits in Copilot's local ledger. GitHub's billing API does not return zero-priced BYOK rows, so it cannot independently confirm that request-level result.",
+    "The settled September review is saved in spend-review-2026-09.json.",
     "No new request logging is needed; local usage rows plus Azure Monitor provide enough aggregate verification without retaining routing diagnostics."
   ]
 }

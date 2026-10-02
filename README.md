@@ -125,7 +125,7 @@ Each `models` key must be one of HydraFusion's six accepted model IDs. Lerna rej
 
 ## Fresh Microsoft Foundry setup
 
-The Azure estate is the fiddly part. Lerna needs (1) an `YOUR-ACCOUNT-KIND` account, (2) one deployment for each HydraFusion model you want to pay for, (3) an Entra public-client app, and (4) inference permission for the person signing in.
+The Azure estate is the fiddly part. Lerna needs (1) a Microsoft Foundry resource, (2) one deployment for each HydraFusion model you want to pay for, (3) an Entra public-client app, and (4) inference permission for the person signing in.
 
 Before creating anything, check the model catalog and quota for the region. Model versions, SKUs, and capacity vary by subscription and region, so do not copy an old version number from this README and assume Azure still offers it.
 
@@ -136,6 +136,7 @@ $subscriptionId = "00000000-0000-0000-0000-000000000000"
 $resourceGroup = "lerna-rg"
 $location = "YOUR-REGION"
 $accountName = "lerna-foundry"
+$accountKind = "YOUR-ACCOUNT-KIND"
 
 az login
 az account set --subscription $subscriptionId
@@ -146,7 +147,7 @@ az cognitiveservices account create `
   --name $accountName `
   --resource-group $resourceGroup `
   --location $location `
-  --kind YOUR-ACCOUNT-KIND `
+  --kind $accountKind `
   --sku S0 `
   --custom-domain $accountName
 
@@ -173,7 +174,7 @@ az cognitiveservices account deployment create `
   --sku-capacity 1000
 ```
 
-Repeat that command only for models available in the account's region. Use `Anthropic` as the model format for `claude-opus-5`. Deployment capacity is billable and quota-backed, so check it before accepting the command.
+Repeat that command only for models available in the account's region. Use `Anthropic` as the model format for `claude-opus-5`. Deployment capacity reserves throughput quota. `GlobalStandard` remains usage-billed, so lowering capacity releases quota or causes earlier throttling, it does not reduce the token price or create an idle-charge saving.
 
 Give your signed-in Azure user inference access to the account:
 
@@ -233,7 +234,7 @@ With `--resume` the CLI opens a throwaway session, loads extensions into it, the
 
 HydraFusion picks the model, not you. Lerna only gets to answer for a model once HydraFusion's planner has already chosen it, so a mapped model that the planner never picks will never see traffic.
 
-For the current Azure deployment inventory, cost notes, routing observations, and the live reference file for HydraFusion tracking, see [experiments/hydrafusion-reference.md](experiments/hydrafusion-reference.md).
+For the current Azure deployment inventory, cost policy, routing observations, and the field reference used to track HydraFusion changes, see [experiments/hydrafusion-reference.md](experiments/hydrafusion-reference.md).
 
 See also [RESEARCH.md](RESEARCH.md).
 

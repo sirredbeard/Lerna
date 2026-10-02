@@ -32,9 +32,9 @@ The 12-hour audit from September 7, 2026 at 02:38:42 UTC through 14:38:42 UTC fo
 | GPT-5.6 Terra | 2 | 3,500 | 0 | 2,780 | 257 | 0% |
 | Claude Opus 5 | 3 | 75,759 | 41,812 | 33,941 | 82 | 55.19% |
 
-At September 7 list rates, the mapped work cost an estimated $72.33 on Azure. The same work with caching disabled would have cost about $283.27, so prompt caching avoided about $210.94. The equivalent GitHub Copilot list cost was about $57.31, or 5,731 AI credits, because Sol costs more on Azure. The actual mapped rows recorded zero GitHub AI credits.
+The original September 7 cost estimate did not hold up against the settled bill. It double-counted GPT cache writes as ordinary input plus cache writes and omitted Microsoft Marketplace Claude charges. The token and cache observations remain useful; the cost fields in [`experiments/observed-usage-2026-09-07.json`](experiments/observed-usage-2026-09-07.json) are historical.
 
-This is a token-based estimate, not an invoice. Azure Cost Management returned HTTP 429 during the audit and same-day cost records can lag. The complete nonsecret result is saved in [`experiments/observed-usage-2026-09-07.json`](experiments/observed-usage-2026-09-07.json).
+For all of September, Azure Cost Management reported $89.12 in ActualCost: $63.12 in Foundry model meters and $26.00 in Microsoft Marketplace Claude meters. The billed GPT token mix would have cost about $345.24 without caching, compared with $63.12 actual, a $282.12 difference. GitHub's billing API reported 43,665.46 gross AI credits, a 19,998.84-credit included discount, and 23,666.62 net credits. The settled nonsecret review is saved in [`experiments/spend-review-2026-09.json`](experiments/spend-review-2026-09.json).
 
 No model output was 'rewritten'. Azure computed and reused model-side prompt state. The client still sent each request normally.
 
@@ -298,9 +298,9 @@ All rates below are USD per 1M tokens for the short/default context tier. Azure 
 | Claude Opus 5 | Foundry marketplace | $5.00 | $0.50 | $6.25 for 5m | $25.00 |
 | Claude Opus 5 | GitHub Copilot | $5.00 | $0.50 | $6.25 | $25.00 |
 
-Sol is the exception in this group. Across the 12-hour sample, Sol cost an estimated $71.36 on Azure versus $56.33 at Copilot list rates, a 26.7% Azure premium after cache effects. Luna, Terra, and Opus 5 matched at list price. The total comparison was $72.33 on Azure versus $57.31, or about 5,731 AI credits, through Copilot billing.
+The 12-hour same-work comparison was not reliable enough to keep. Azure's settled September meters and GitHub's billing API measure different request sets, and GitHub does not return zero-priced BYOK rows. They should not be divided into a model premium.
 
-That does not mean Copilot would have added $57.31 to the bill. Included plan credits have zero marginal cash cost until they are exhausted. If cash cost is the only objective and Copilot credits are available, leave Sol on Copilot. Azure routing still makes sense for Azure credits, governance, data controls, internal chargeback, or preserving Copilot credits. Contract discounts, taxes, and actual invoice meters can change the result.
+The monthly budget result is clear enough. Copilot Max's 20,000 included credits were exhausted and another 23,666.62 credits were billable. Sol should still stay on Copilot when price is the deciding factor. Repricing September's exact Azure Sol token mix at GitHub's published rates gives $49.02 on GitHub versus $62.35 on Azure, a $13.34 saving.
 
 GitHub converts model cost into AI credits at `1 AI credit = $0.01`. The monthly individual allowances were:
 
@@ -320,7 +320,7 @@ The September 7 audit compared three independent views over the same 12-hour win
 
 1. Copilot's local `assistant_usage_events` ledger.
 2. Lerna's temporary response-head diagnostics.
-3. Azure Monitor metrics for the `YOUR-FOUNDRY-RESOURCE` account in YOUR-REGION.
+3. Azure Monitor metrics for the private Microsoft Foundry account.
 
 The local ledger contained 729 mapped calls with `total_nano_aiu = 0`: 624 Sol, 100 Luna, 2 Terra, and 3 Opus. Lerna recorded 740 successful BYOK response heads in a nearly identical rolling window. Azure Monitor recorded 743 model requests, 742 successful and one Claude HTTP 400. The small model-level differences are consistent with Azure metric delay and platform availability probes. Claude's Azure token metrics totaled 75,848 prompt tokens, within 0.12% of the 75,759 tokens in the three zero-credit local Opus rows.
 
@@ -416,8 +416,8 @@ The practical cost choices are:
 - Keep the stable workspace/resource/deployment cache key. It worked.
 - Keep implicit cache mode. The observed read rate does not justify guessing at explicit content breakpoints.
 - Resume long sessions when the context is still useful. Fresh sessions discard most reuse.
-- Leave Sol on Copilot when unused included credits matter more than Azure control. Azure Sol was 26.7% more expensive at list price.
-- Route Luna, Terra, and Opus according to governance or credit-pool needs; their list prices matched.
+- Keep Sol on Copilot. GitHub is cheaper for input, cached input, cache writes, and output.
+- Route Luna, Terra, and Opus to Foundry when moving their spend to Azure credits is useful.
 - Avoid unnecessary explicit Sonnet, Opus, and Haiku subagents if Copilot AI credits are the constraint. Those calls are outside Lerna's mapped Hydra model leg and remained billable.
 - Do not delete idle `GlobalStandard` deployments to chase an idle-charge saving. These deployments were usage billed, not provisioned-throughput reservations.
 
@@ -511,7 +511,7 @@ The effective policy is intentionally selective:
 
 | Hydra model | Route | Reason |
 | --- | --- | --- |
-| `gpt-5.6-sol` | Copilot | Azure remained about 26.7% more expensive at observed list rates. |
+| `gpt-5.6-sol` | Copilot | The exact September Azure token mix prices to $49.02 on GitHub versus $62.35 on Azure. |
 | `gpt-5.6-luna` | Foundry | Matching list rate, zero Copilot AI-unit charge for mapped calls, and 87.37% cache reads over the expanded sample. |
 | `gpt-5.6-terra` | Foundry | Matching list rate and low latency; sparse traffic is too small to justify a special cache policy. |
 | `claude-opus-5` | Foundry | Matching list rate and 95.22% cache reads after 56 mapped calls. |

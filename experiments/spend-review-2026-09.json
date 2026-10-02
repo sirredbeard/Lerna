@@ -24,7 +24,10 @@
         "cacheWriteTokensMillions": 3.701061,
         "uncachedInputTokensMillions": 0.207729,
         "outputTokensMillions": 0.216474,
-        "actualCost": 62.35480025
+        "actualCost": 62.35480025,
+        "sameTokensAtGitHubRates": 49.0179442,
+        "githubSavingsForSameTokens": 13.33685605,
+        "azurePremiumPercent": 27.21
       },
       {
         "model": "gpt-5.6-luna",
@@ -118,5 +121,9 @@
     "The $210.94 cache-savings estimate is superseded by $282.12 for all September GPT usage.",
     "GitHub's billing API confirms September exhausted almost exactly 20,000 included AI credits and reported 23,666.62 net additional credits.",
     "GitHub's API does not return zero-priced BYOK calls, so the claim that a specific mapped request used zero AI credits still depends on the local Copilot usage ledger."
+  ],
+  "routingDecision": [
+    "Keep gpt-5.6-sol on GitHub Copilot because GitHub's published rate is lower for input, cached input, cache writes, and output.",
+    "Route gpt-5.6-luna, gpt-5.6-terra, and claude-opus-5 to Foundry when moving their spend to Azure credits is useful."
   ]
 }

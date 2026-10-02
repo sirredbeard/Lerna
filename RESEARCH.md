@@ -300,7 +300,7 @@ All rates below are USD per 1M tokens for the short/default context tier. Azure 
 
 The 12-hour same-work comparison was not reliable enough to keep. Azure's settled September meters and GitHub's billing API measure different request sets, and GitHub does not return zero-priced BYOK rows. They should not be divided into a model premium.
 
-The monthly budget result is clear enough. Copilot Max's 20,000 included credits were exhausted and another 23,666.62 credits were billable. When Azure subscription credits remain, routing Sol to Foundry reduces GitHub cash spend even if Azure's model meter is higher. If Azure credits are exhausted and total economic consumption is the only objective, Sol can move back to Copilot.
+The monthly budget result is clear enough. Copilot Max's 20,000 included credits were exhausted and another 23,666.62 credits were billable. Sol should still stay on Copilot when price is the deciding factor. Repricing September's exact Azure Sol token mix at GitHub's published rates gives $49.02 on GitHub versus $62.35 on Azure, a $13.34 saving.
 
 GitHub converts model cost into AI credits at `1 AI credit = $0.01`. The monthly individual allowances were:
 
@@ -416,8 +416,8 @@ The practical cost choices are:
 - Keep the stable workspace/resource/deployment cache key. It worked.
 - Keep implicit cache mode. The observed read rate does not justify guessing at explicit content breakpoints.
 - Resume long sessions when the context is still useful. Fresh sessions discard most reuse.
-- Route Sol, Luna, Terra, and Opus to Foundry while Azure subscription credits remain and GitHub overage is the constraint.
-- Move Sol back to Copilot if Azure credits are exhausted and total economic consumption matters more than GitHub AI-credit preservation.
+- Keep Sol on Copilot. GitHub is cheaper for input, cached input, cache writes, and output.
+- Route Luna, Terra, and Opus to Foundry when moving their spend to Azure credits is useful.
 - Avoid unnecessary explicit Sonnet, Opus, and Haiku subagents if Copilot AI credits are the constraint. Those calls are outside Lerna's mapped Hydra model leg and remained billable.
 - Do not delete idle `GlobalStandard` deployments to chase an idle-charge saving. These deployments were usage billed, not provisioned-throughput reservations.
 
@@ -511,7 +511,7 @@ The effective policy is intentionally selective:
 
 | Hydra model | Route | Reason |
 | --- | --- | --- |
-| `gpt-5.6-sol` | Foundry recommended; current setting still Copilot | September exhausted the included GitHub allowance and billed another 23,666.62 credits. |
+| `gpt-5.6-sol` | Copilot | The exact September Azure token mix prices to $49.02 on GitHub versus $62.35 on Azure. |
 | `gpt-5.6-luna` | Foundry | Matching list rate, zero Copilot AI-unit charge for mapped calls, and 87.37% cache reads over the expanded sample. |
 | `gpt-5.6-terra` | Foundry | Matching list rate and low latency; sparse traffic is too small to justify a special cache policy. |
 | `claude-opus-5` | Foundry | Matching list rate and 95.22% cache reads after 56 mapped calls. |

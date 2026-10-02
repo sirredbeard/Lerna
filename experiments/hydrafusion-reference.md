@@ -151,14 +151,16 @@ There are two budgets here, and optimizing one can make the other worse:
 
 The active Lerna settings still route Luna, Terra, and Opus. Sol is deployed but unmapped. That matches the older policy and the Copilot review on #6 was correct to flag any document claiming otherwise.
 
-The settled month changes the recommendation. September used 218% of the Copilot Max allowance and produced $236.67 in additional GitHub usage. When Azure credits are available, I would route Sol too:
+The settled month does not change the Sol decision. GitHub is cheaper for Sol on every published token class: $4 versus $5 per 1M input tokens, $0.40 versus $0.50 cached, $5 versus $6.25 for cache writes, and $20 versus $30 for output.
 
-- Route Sol, Luna, Terra, and Opus to Foundry while the Azure credit balance can absorb the usage.
+Repricing September's exact Azure Sol token mix at GitHub rates gives $49.02 instead of $62.35, a $13.34 saving. Azure was 27.21% more expensive for the same tokens.
+
+- Keep Sol on GitHub Copilot.
+- Route Luna, Terra, and Opus to Foundry.
 - Leave the two MAI models on Copilot because no same-model Foundry deployment exists.
-- Revert Sol to Copilot when Azure credits are exhausted and minimizing total economic consumption matters more than preserving GitHub AI credits.
 - Keep the same-model boundary. Do not substitute a cheaper model behind a HydraFusion ID.
 
-This is a recommendation, not the current local setting.
+This matches the current local setting and addresses the Copilot review on #6.
 
 Lerna does not automate the decision today. A budget-aware route policy can use GitHub's supported `ai_credit/usage` endpoint, a user-selected GitHub reserve, an Azure monthly ceiling, and an explicit fallback when either ledger is unavailable. It should not depend on Copilot's undocumented local database.
 
@@ -308,7 +310,8 @@ Commit the dated raw snapshot separately when it adds evidence. This file should
 | 2026-09-07 | Measured 729 mapped calls and a 92.89% weighted cache-read rate. | Observed usage snapshot | Keep the stable cache key and implicit mode. |
 | 2026-10-01 | GitHub published HydraFusion's Single, Cascade, and Critique patterns and complete-accounting principle. | Official GitHub announcement | Track every workflow leg, not only the final model. |
 | 2026-10-02 | Verified five Foundry deployments and three active Lerna routes. | Live Azure and local configuration | Route Luna, Terra, and Opus; keep Sol ready but unmapped. |
-| 2026-10-02 | Settled September Azure cost was $89.12; GitHub reported 43,665.46 gross credits and 23,666.62 net credits after the included allowance. | Azure Cost Management and GitHub billing API | Recommend adding Sol to Foundry while Azure credits remain. |
+| 2026-10-02 | Settled September Azure cost was $89.12; GitHub reported 43,665.46 gross credits and 23,666.62 net credits after the included allowance. | Azure Cost Management and GitHub billing API | Keep watching both ledgers. |
+| 2026-10-02 | Repriced the exact Azure Sol token mix at GitHub's published rates: $49.02 on GitHub versus $62.35 on Azure. | Settled Azure quantities and GitHub model pricing | Keep Sol on Copilot. |
 | 2026-10-02 | Repriced settled GPT meters at ordinary uncached input rates. | Azure Cost Management billed quantities | Keep prompt caching; September GPT savings were about $282.12. |
 | 2026-10-02 | Found no diagnostic setting, metric alert, or resource-group budget. | Live Azure configuration | Add a budget and narrow metric alerts before adding paid log retention. |
 

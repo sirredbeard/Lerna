@@ -233,6 +233,8 @@ With `--resume` the CLI opens a throwaway session, loads extensions into it, the
 
 HydraFusion picks the model, not you. Lerna only gets to answer for a model once HydraFusion's planner has already chosen it, so a mapped model that the planner never picks will never see traffic.
 
+For the current Azure deployment inventory, cost notes, routing observations, and the live reference file for HydraFusion tracking, see [experiments/hydrafusion-reference.md](experiments/hydrafusion-reference.md).
+
 See also [RESEARCH.md](RESEARCH.md).
 
 ## License

@@ -1,6 +1,6 @@
 {
-  "lastTag": "v1.0.91",
-  "latestVersion": "1.0.91",
+  "lastTag": "v1.0.94",
+  "latestVersion": "1.0.94",
   "hydraFusionModels": [
     "claude-opus-5",
     "gpt-5.6-luna",
@@ -13,6 +13,7 @@
     "claude-fable-5",
     "claude-fable-5.1",
     "claude-haiku-4.5",
+    "claude-haiku-5.5",
     "claude-opus-4.7",
     "claude-opus-4.8",
     "claude-opus-4.8-fast",
@@ -43,5 +44,5 @@
     "kimi-k3",
     "mai-code-1.1-flash"
   ],
-  "checkedAt": "2026-10-01T22:44:00.762Z"
+  "checkedAt": "2026-10-09T07:25:05.886Z"
 }

@@ -75,6 +75,31 @@ test("a legacy setting override prevents switching to HydraFusion", async () => 
   assert.match(logs[0], /legacy config\.json still overrides it/);
 });
 
+test("null userSettings.set results do not crash the enable flow", async () => {
+  const logs = [];
+  const calls = [];
+  const settings = {
+    get: async () => ({ settings: { experimental: { value: false } } }),
+    set: async value => { calls.push(value); return null; },
+  };
+  const session = {
+    capabilities: { ui: { elicitation: true } },
+    ui: { confirm: async () => true },
+    log: async message => logs.push(message),
+    rpc: {
+      model: {
+        getCurrent: async () => ({ modelId: "gpt-5.6-terra" }),
+        switchTo: async value => { calls.push(value); },
+      },
+    },
+  };
+
+  assert.equal(await ensureHydraFusion(session, settings), true);
+  assert.deepEqual(calls, [{ settings: { experimental: true } }, { modelId: "hydrafusion", requireAvailable: true }]);
+  assert.match(logs[0], /Experimental features enabled/);
+  assert.match(logs[1], /changed the selected model/);
+});
+
 test("declining experimental features leaves the selected model unchanged", async () => {
   const logs = [];
   const session = {

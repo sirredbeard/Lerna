@@ -18,7 +18,8 @@ export async function ensureHydraFusion(session, userSettings) {
     }
     try {
       const result = await userSettings.set({ settings: { experimental: true } });
-      if (result.shadowedKeys?.includes("experimental")) {
+      const shadowedKeys = Array.isArray(result?.shadowedKeys) ? result.shadowedKeys : [];
+      if (shadowedKeys.includes("experimental")) {
         await session.log("Lerna wrote experimental=true, but legacy config.json still overrides it. Remove that legacy setting and restart Copilot CLI.", { level: "warning" });
         return false;
       }

@@ -1,6 +1,6 @@
 {
-  "lastTag": "v1.0.91",
-  "latestVersion": "1.0.91",
+  "lastTag": "v1.0.98",
+  "latestVersion": "1.0.98",
   "hydraFusionModels": [
     "claude-opus-5",
     "gpt-5.6-luna",
@@ -24,6 +24,7 @@
     "gemini-3.6-flash",
     "gemini-3.7-flash",
     "gemini-3.8-flash",
+    "gemini-4",
     "gpt-5-mini",
     "gpt-5.3-codex",
     "gpt-5.4",
@@ -43,5 +44,5 @@
     "kimi-k3",
     "mai-code-1.1-flash"
   ],
-  "checkedAt": "2026-10-01T22:44:00.762Z"
+  "checkedAt": "2026-10-15T07:20:35.801Z"
 }

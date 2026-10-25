@@ -5,15 +5,19 @@ using System.Text.RegularExpressions;
 
 namespace Lerna;
 
-/// <summary>The exact six model IDs HydraFusion accepts in a fusion plan (Copilot CLI,
-/// verified by replaying synthetic solo plans for the full CAPI catalog). Lerna treats this as
-/// a hard allowlist: nothing else may ever be used as a "models" mapping key, in a fusion plan
-/// rewrite, or routed anywhere.</summary>
+/// <summary>The six model IDs Lerna accepts as HydraFusion plan models. GitHub moved the
+/// pool on 2026-10-14 to Claude Opus 5.5, GPT-6 Astra, GPT-6.1 Sol, and GPT-6 Luna.
+/// `gpt-6-luna` and `gpt-6-astra` were verified against the Copilot CLI 1.0.94 planner on
+/// 2026-10-25, in HydraFusion and HydraFusion Max Single plans. `claude-opus-5.5` and
+/// `gpt-6.1-sol` come from the pool announcement and the Copilot model catalog, and their
+/// planner probe is still pending. The two MAI IDs stay in the list as never-routed IDs.
+/// Lerna treats this as a hard allowlist: nothing else may ever be used as a "models"
+/// mapping key, in a fusion plan rewrite, or routed anywhere.</summary>
 public static class HydraModels
 {
     public static readonly IReadOnlyList<string> AllowedIds =
     [
-        "claude-opus-5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra",
+        "claude-opus-5.5", "gpt-6-astra", "gpt-6-luna", "gpt-6.1-sol",
         "mai-code-1.1-flash", "mai-code-1-flash-picker",
     ];
 

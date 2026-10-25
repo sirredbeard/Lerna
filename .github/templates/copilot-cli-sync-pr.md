@@ -15,7 +15,7 @@ az login
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 az cognitiveservices model list \
   --location YOUR-REGION \
-  --query "[?name=='gpt-5.6-sol' || name=='gpt-5.6-luna' || name=='gpt-5.6-terra' || name=='claude-opus-5'].{model:name,format:format,version:version,skus:skus[].name}" \
+  --query "[?name=='gpt-6.1-sol' || name=='gpt-6-luna' || name=='gpt-6-astra' || name=='claude-opus-5-5'].{model:name,format:format,version:version,skus:skus[].name}" \
   --output table
 ```
 

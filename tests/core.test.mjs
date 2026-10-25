@@ -187,7 +187,7 @@ test('config over the 1 MiB bound is refused, not silently truncated', async () 
 test('atomic writes leave no temp files behind', async () => {
   const cfg = freshConfigPath();
   runCli(['init', '--config', cfg]);
-  runCli(['configure', '--config', cfg, '--model', 'gpt-5.6-terra',
+  runCli(['configure', '--config', cfg, '--model', 'gpt-6-luna',
     '--endpoint', 'https://foo.cognitiveservices.azure.com/openai/v1/responses', '--key-env', 'FOO_KEY']);
   const entries = await readdir(workDir);
   const leftovers = entries.filter(name => name.includes('.tmp-'));
@@ -361,12 +361,12 @@ test('disable clears enabled while preserving model/endpoint/key fields', () => 
 test('legacy lerna.probe is read as disabled compatibility and cannot be enabled directly', async () => {
   const cfg = freshConfigPath();
   await writeFile(cfg, JSON.stringify({
-    lerna: { probe: { model: 'gpt-5.6-terra', endpoint: 'https://foo.cognitiveservices.azure.com/openai/v1/responses', keyEnv: 'AZURE_FOUNDRY_API_KEY' } },
+    lerna: { probe: { model: 'gpt-6-luna', endpoint: 'https://foo.cognitiveservices.azure.com/openai/v1/responses', keyEnv: 'AZURE_FOUNDRY_API_KEY' } },
   }));
   const status = parseStdoutJson(runCli(['status', '--config', cfg]));
   assert.equal(status.enabled, false);
   assert.equal(status.compatibilityProbe, true);
-  assert.equal(status.model, 'gpt-5.6-terra');
+  assert.equal(status.model, 'gpt-6-luna');
 
   const enable = runCli(['enable', '--config', cfg]);
   assert.equal(enable.status, 1);
@@ -444,7 +444,7 @@ function baseTestEnv() {
 const FAKE_CLIENT_ID = 'e3e9d1ab-9283-4cb6-b512-07d9a47fad06';
 
 function configuredSettings(cfg) {
-  runCli(['configure', '--config', cfg, '--model', 'gpt-5.6-terra',
+  runCli(['configure', '--config', cfg, '--model', 'gpt-6-luna',
     '--endpoint', 'https://foo.cognitiveservices.azure.com/openai/v1/responses', '--key-env', 'FOO_KEY']);
   runCli(['enable', '--config', cfg]);
 }
@@ -459,7 +459,7 @@ test('serve: status/environment/attach/event acknowledge with the documented sha
     assert.equal(status.id, '1');
     assert.equal(status.type, 'result');
     assert.deepEqual(status.value, {
-      enabled: true, verbose: true, configured: true, model: 'gpt-5.6-terra', deployment: 'gpt-5.6-terra',
+      enabled: true, verbose: true, configured: true, model: 'gpt-6-luna', deployment: 'gpt-6-luna',
       endpoint: 'https://foo.cognitiveservices.azure.com/openai/v1/responses',
       requiredEnvironmentVariables: ['FOO_KEY'],
     });
@@ -487,7 +487,7 @@ test('serve: status/environment/attach/event acknowledge with the documented sha
 
     session.send({
       id: '5', op: 'event', sessionId: 'session-abc', event: 'session.fusion_resolved',
-      data: { fusionId: 'f1', primaryModel: 'gpt-5.6-terra' },
+      data: { fusionId: 'f1', primaryModel: 'gpt-6-luna' },
     });
     const event = await session.next();
     assert.deepEqual(event, { id: '5', type: 'result', value: true });
@@ -789,9 +789,9 @@ test('status reflects a persisted lerna.auth + lerna.models section (CLI)', asyn
       enabled: true,
       auth: { type: 'azure', tenantId: '11111111-1111-1111-1111-111111111111', subscriptionId: '22222222-2222-2222-2222-222222222222' },
       models: {
-        'gpt-5.6-terra': {
+        'gpt-6-luna': {
           resourceId: '/subscriptions/x/resourceGroups/y/providers/Microsoft.CognitiveServices/accounts/contoso-foundry',
-          resourceName: 'contoso-foundry', deployment: 'gpt-5.6-terra',
+          resourceName: 'contoso-foundry', deployment: 'gpt-6-luna',
           endpoint: 'https://contoso-foundry.cognitiveservices.azure.com', wire: 'responses',
         },
       },
@@ -800,7 +800,7 @@ test('status reflects a persisted lerna.auth + lerna.models section (CLI)', asyn
   const result = parseStdoutJson(runCli(['status', '--config', cfg]));
   assert.equal(result.configured, true);
   assert.deepEqual(result.auth, { type: 'azure', tenantId: '11111111-1111-1111-1111-111111111111', subscriptionId: '22222222-2222-2222-2222-222222222222' });
-  assert.deepEqual(result.models, ['gpt-5.6-terra']);
+  assert.deepEqual(result.models, ['gpt-6-luna']);
 });
 
 test('enable preserves lerna.auth.clientId instead of silently dropping it', async () => {
@@ -814,9 +814,9 @@ test('enable preserves lerna.auth.clientId instead of silently dropping it', asy
       enabled: false,
       auth: { type: 'azure', tenantId: '11111111-1111-1111-1111-111111111111', clientId },
       models: {
-        'gpt-5.6-terra': {
+        'gpt-6-luna': {
           resourceId: '/subscriptions/x/resourceGroups/y/providers/Microsoft.CognitiveServices/accounts/contoso-foundry',
-          resourceName: 'contoso-foundry', deployment: 'gpt-5.6-terra',
+          resourceName: 'contoso-foundry', deployment: 'gpt-6-luna',
           endpoint: 'https://contoso-foundry.cognitiveservices.azure.com', wire: 'responses',
         },
       },
@@ -864,14 +864,14 @@ test('enable refuses to map either MAI model ID (no Azure equivalent)', async ()
   assert.match(result.stderr, /has no Azure equivalent and must never be mapped to BYOK/);
 });
 
-test('enable accepts a verified Anthropic-wire mapping for claude-opus-5 (route/headers/auth confirmed live)', async () => {
+test('enable accepts a verified Anthropic-wire mapping for claude-opus-5.5 (route/headers/auth confirmed live)', async () => {
   const cfg = freshConfigPath();
   await writeFile(cfg, JSON.stringify({
     lerna: {
       enabled: false,
       models: {
-        'claude-opus-5': {
-          resourceId: 'r', resourceName: 'n', deployment: 'claude-opus-5',
+        'claude-opus-5.5': {
+          resourceId: 'r', resourceName: 'n', deployment: 'claude-opus-5.5',
           endpoint: 'https://contoso-foundry.services.ai.azure.com', wire: 'anthropic',
         },
       },
@@ -879,7 +879,7 @@ test('enable accepts a verified Anthropic-wire mapping for claude-opus-5 (route/
   }));
   const result = parseStdoutJson(runCli(['enable', '--config', cfg]));
   assert.equal(result.enabled, true);
-  assert.deepEqual(result.models, ['claude-opus-5']);
+  assert.deepEqual(result.models, ['claude-opus-5.5']);
 });
 
 test('enable rejects a models mapping whose endpoint is a full URL instead of the resource base endpoint (anthropic wire)', async () => {
@@ -888,8 +888,8 @@ test('enable rejects a models mapping whose endpoint is a full URL instead of th
     lerna: {
       enabled: false,
       models: {
-        'claude-opus-5': {
-          resourceId: 'r', resourceName: 'n', deployment: 'claude-opus-5',
+        'claude-opus-5.5': {
+          resourceId: 'r', resourceName: 'n', deployment: 'claude-opus-5.5',
           endpoint: 'https://x.cognitiveservices.azure.com/anthropic/v1/messages', wire: 'anthropic',
         },
       },
@@ -906,8 +906,8 @@ test('enable rejects a models mapping whose endpoint is a full URL instead of th
     lerna: {
       enabled: false,
       models: {
-        'gpt-5.6-sol': {
-          resourceId: 'r', resourceName: 'n', deployment: 'gpt-5.6-sol',
+        'gpt-6.1-sol': {
+          resourceId: 'r', resourceName: 'n', deployment: 'gpt-6.1-sol',
           endpoint: 'https://x.cognitiveservices.azure.com/openai/v1/responses', wire: 'responses',
         },
       },
@@ -918,15 +918,15 @@ test('enable rejects a models mapping whose endpoint is a full URL instead of th
   assert.match(result.stderr, /must be the resource's base endpoint only \(no path\)/);
 });
 
-test('enable accepts a valid gpt-5.6-sol models mapping on the responses wire', async () => {
+test('enable accepts a valid gpt-6.1-sol models mapping on the responses wire', async () => {
   const cfg = freshConfigPath();
   await writeFile(cfg, JSON.stringify({
     lerna: {
       enabled: false,
       models: {
-        'gpt-5.6-sol': {
+        'gpt-6.1-sol': {
           resourceId: '/subscriptions/x/resourceGroups/y/providers/Microsoft.CognitiveServices/accounts/contoso-foundry',
-          resourceName: 'contoso-foundry', deployment: 'gpt-5.6-sol',
+          resourceName: 'contoso-foundry', deployment: 'gpt-6.1-sol',
           endpoint: 'https://contoso-foundry.cognitiveservices.azure.com', wire: 'responses',
         },
       },
@@ -934,7 +934,7 @@ test('enable accepts a valid gpt-5.6-sol models mapping on the responses wire', 
   }));
   const result = parseStdoutJson(runCli(['enable', '--config', cfg]));
   assert.equal(result.enabled, true);
-  assert.deepEqual(result.models, ['gpt-5.6-sol']);
+  assert.deepEqual(result.models, ['gpt-6.1-sol']);
 });
 
 test('enable accepts the same resource base endpoint mapped for both a responses-wire and an anthropic-wire model (one resource, two wires, one base endpoint)', async () => {
@@ -943,14 +943,14 @@ test('enable accepts the same resource base endpoint mapped for both a responses
     lerna: {
       enabled: false,
       models: {
-        'gpt-5.6-terra': {
+        'gpt-6-luna': {
           resourceId: '/subscriptions/x/resourceGroups/y/providers/Microsoft.CognitiveServices/accounts/contoso-foundry',
-          resourceName: 'contoso-foundry', deployment: 'gpt-5.6-terra',
+          resourceName: 'contoso-foundry', deployment: 'gpt-6-luna',
           endpoint: 'https://contoso-foundry.services.ai.azure.com', wire: 'responses',
         },
-        'claude-opus-5': {
+        'claude-opus-5.5': {
           resourceId: '/subscriptions/x/resourceGroups/y/providers/Microsoft.CognitiveServices/accounts/contoso-foundry',
-          resourceName: 'contoso-foundry', deployment: 'claude-opus-5',
+          resourceName: 'contoso-foundry', deployment: 'claude-opus-5.5',
           endpoint: 'https://contoso-foundry.services.ai.azure.com', wire: 'anthropic',
         },
       },
@@ -958,7 +958,7 @@ test('enable accepts the same resource base endpoint mapped for both a responses
   }));
   const result = parseStdoutJson(runCli(['enable', '--config', cfg]));
   assert.equal(result.enabled, true);
-  assert.deepEqual(result.models.sort(), ['claude-opus-5', 'gpt-5.6-terra']);
+  assert.deepEqual(result.models.sort(), ['claude-opus-5.5', 'gpt-6-luna']);
 });
 
 test('serve: bridge status lists mapped model IDs without ever exposing endpoint/resource details', async () => {
@@ -967,8 +967,8 @@ test('serve: bridge status lists mapped model IDs without ever exposing endpoint
     lerna: {
       enabled: false,
       models: {
-        'gpt-5.6-sol': {
-          resourceId: 'r', resourceName: 'n', deployment: 'gpt-5.6-sol',
+        'gpt-6.1-sol': {
+          resourceId: 'r', resourceName: 'n', deployment: 'gpt-6.1-sol',
           endpoint: 'https://x.cognitiveservices.azure.com', wire: 'responses',
         },
       },
@@ -979,7 +979,7 @@ test('serve: bridge status lists mapped model IDs without ever exposing endpoint
     session.send({ id: '1', op: 'status' });
     const status = await session.next();
     assert.equal(status.value.configured, true);
-    assert.deepEqual(status.value.models, ['gpt-5.6-sol']);
+    assert.deepEqual(status.value.models, ['gpt-6.1-sol']);
     assert.equal(JSON.stringify(status).includes('cognitiveservices'), false, 'status must never leak endpoint/resource details');
   } finally {
     session.kill();
@@ -1003,9 +1003,9 @@ test('serve: a request for an already-mapped Anthropic-wire model is routed (and
     lerna: {
       enabled: true,
       models: {
-        'claude-opus-5': {
+        'claude-opus-5.5': {
           resourceId: '/subscriptions/x/resourceGroups/y/providers/Microsoft.CognitiveServices/accounts/contoso-foundry',
-          resourceName: 'contoso-foundry', deployment: 'claude-opus-5',
+          resourceName: 'contoso-foundry', deployment: 'claude-opus-5.5',
           endpoint: 'https://contoso-foundry.services.ai.azure.com', wire: 'anthropic',
         },
       },
@@ -1017,7 +1017,7 @@ test('serve: a request for an already-mapped Anthropic-wire model is routed (and
     await session.next();
 
     const body = Buffer.from(JSON.stringify({
-      model: 'claude-opus-5', messages: [{ role: 'user', content: 'hi' }], max_tokens: 64,
+      model: 'claude-opus-5.5', messages: [{ role: 'user', content: 'hi' }], max_tokens: 64,
     })).toString('base64');
     session.send({
       id: 'f1', op: 'forward', sessionId: 'sess-1', method: 'POST',
@@ -1043,9 +1043,9 @@ test('serve: a request for an already-mapped Responses-wire model is routed (and
     lerna: {
       enabled: true,
       models: {
-        'gpt-5.6-terra': {
+        'gpt-6-luna': {
           resourceId: '/subscriptions/x/resourceGroups/y/providers/Microsoft.CognitiveServices/accounts/contoso-foundry',
-          resourceName: 'contoso-foundry', deployment: 'gpt-5.6-terra',
+          resourceName: 'contoso-foundry', deployment: 'gpt-6-luna',
           endpoint: 'https://contoso-foundry.cognitiveservices.azure.com', wire: 'responses',
         },
       },
@@ -1056,7 +1056,7 @@ test('serve: a request for an already-mapped Responses-wire model is routed (and
     session.send({ id: 'a1', op: 'attach', sessionId: 'sess-1' });
     await session.next();
 
-    const body = Buffer.from(JSON.stringify({ model: 'gpt-5.6-terra', input: 'hi' })).toString('base64');
+    const body = Buffer.from(JSON.stringify({ model: 'gpt-6-luna', input: 'hi' })).toString('base64');
     session.send({
       id: 'f1', op: 'forward', sessionId: 'sess-1', method: 'POST',
       url: 'https://api.individual.githubcopilot.com/responses', headers: {}, body,
@@ -1189,8 +1189,8 @@ test('azure token refresh: an expired cached access token triggers a silent refr
     lerna: {
       enabled: true, auth: { clientId: FAKE_CLIENT_ID },
       models: {
-        'claude-opus-5': {
-          resourceId: 'r', resourceName: 'n', deployment: 'claude-opus-5',
+        'claude-opus-5.5': {
+          resourceId: 'r', resourceName: 'n', deployment: 'claude-opus-5.5',
           endpoint: 'https://127.0.0.1:1', wire: 'anthropic',
         },
       },
@@ -1213,7 +1213,7 @@ test('azure token refresh: an expired cached access token triggers a silent refr
     session.send({ id: 'a1', op: 'attach', sessionId: 'sess-1' });
     await session.next();
     const body = Buffer.from(JSON.stringify({
-      model: 'claude-opus-5', messages: [{ role: 'user', content: 'hi' }], max_tokens: 8,
+      model: 'claude-opus-5.5', messages: [{ role: 'user', content: 'hi' }], max_tokens: 8,
     })).toString('base64');
     session.send({
       id: 'f1', op: 'forward', sessionId: 'sess-1', method: 'POST',
@@ -1243,8 +1243,8 @@ test('azure token refresh: invalid_grant discards the cached refresh token and a
     lerna: {
       enabled: true, auth: { clientId: FAKE_CLIENT_ID },
       models: {
-        'gpt-5.6-terra': {
-          resourceId: 'r', resourceName: 'n', deployment: 'gpt-5.6-terra',
+        'gpt-6-luna': {
+          resourceId: 'r', resourceName: 'n', deployment: 'gpt-6-luna',
           endpoint: 'https://127.0.0.1:1', wire: 'responses',
         },
       },
@@ -1259,7 +1259,7 @@ test('azure token refresh: invalid_grant discards the cached refresh token and a
   try {
     session.send({ id: 'a1', op: 'attach', sessionId: 'sess-1' });
     await session.next();
-    const body = Buffer.from(JSON.stringify({ model: 'gpt-5.6-terra', input: 'hi' })).toString('base64');
+    const body = Buffer.from(JSON.stringify({ model: 'gpt-6-luna', input: 'hi' })).toString('base64');
     session.send({
       id: 'f1', op: 'forward', sessionId: 'sess-1', method: 'POST',
       url: 'https://api.individual.githubcopilot.com/responses', headers: {}, body,
@@ -1283,8 +1283,8 @@ test('azure auth: with nothing cached, GetTokenAsync throws a "sign in" error in
     lerna: {
       enabled: true, auth: { clientId: FAKE_CLIENT_ID },
       models: {
-        'gpt-5.6-terra': {
-          resourceId: 'r', resourceName: 'n', deployment: 'gpt-5.6-terra',
+        'gpt-6-luna': {
+          resourceId: 'r', resourceName: 'n', deployment: 'gpt-6-luna',
           endpoint: 'https://127.0.0.1:1', wire: 'responses',
         },
       },
@@ -1296,7 +1296,7 @@ test('azure auth: with nothing cached, GetTokenAsync throws a "sign in" error in
   try {
     session.send({ id: 'a1', op: 'attach', sessionId: 'sess-1' });
     await session.next();
-    const body = Buffer.from(JSON.stringify({ model: 'gpt-5.6-terra', input: 'hi' })).toString('base64');
+    const body = Buffer.from(JSON.stringify({ model: 'gpt-6-luna', input: 'hi' })).toString('base64');
     session.send({
       id: 'f1', op: 'forward', sessionId: 'sess-1', method: 'POST',
       url: 'https://api.individual.githubcopilot.com/responses', headers: {}, body,

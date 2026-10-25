@@ -25,7 +25,7 @@ test("Copilot-only MAI inference bypasses Lerna completely", async () => {
   });
   assert.equal(await shouldBypassLerna(request("mai-code-1.1-flash")), true);
   assert.equal(await shouldBypassLerna(request("mai-code-1-flash-picker")), true);
-  assert.equal(await shouldBypassLerna(request("gpt-5.6-sol")), false);
+  assert.equal(await shouldBypassLerna(request("gpt-6.1-sol")), false);
   assert.equal(await shouldBypassLerna(new Request("https://api.githubcopilot.com/model/fusion", {
     method: "POST", body: JSON.stringify({ model: "mai-code-1.1-flash" }),
   })), false);

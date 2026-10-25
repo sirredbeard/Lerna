@@ -8,7 +8,7 @@ static JsonObject Rewrite(JsonObject body, ModelMapping? mapping = null)
     {
         ResourceId = "/subscriptions/sub-a/resourceGroups/rg/providers/Microsoft.CognitiveServices/accounts/foundry-a",
         ResourceName = "foundry-a",
-        Deployment = "gpt-5.6-sol",
+        Deployment = "gpt-6.1-sol",
         Endpoint = "https://foundry-a.services.ai.azure.com",
         Wire = ModelWire.Responses,
     };
@@ -22,7 +22,7 @@ static void Check(bool condition, string message)
 
 var baseBody = new JsonObject
 {
-    ["model"] = "gpt-5.6-sol",
+    ["model"] = "gpt-6.1-sol",
     ["instructions"] = "Stable repository instructions that must not appear in the key.",
     ["tools"] = new JsonArray(new JsonObject { ["type"] = "function", ["name"] = "read_file" }),
     ["input"] = new JsonArray(new JsonObject
@@ -35,7 +35,7 @@ var baseBody = new JsonObject
 
 var first = Rewrite((JsonObject)baseBody.DeepClone());
 var firstKey = first["prompt_cache_key"]!.GetValue<string>();
-Check(first["model"]!.GetValue<string>() == "gpt-5.6-sol", "deployment rewrite failed");
+Check(first["model"]!.GetValue<string>() == "gpt-6.1-sol", "deployment rewrite failed");
 Check(firstKey.StartsWith("lerna:", StringComparison.Ordinal), "generated key namespace missing");
 Check(firstKey.Length == 64, "generated key must meet the 64-character API limit");
 Check(!firstKey.Contains("foundry-a", StringComparison.Ordinal), "key exposed resource name");
@@ -144,7 +144,7 @@ var otherResource = new ModelMapping
 {
     ResourceId = "/subscriptions/sub-b/resourceGroups/rg/providers/Microsoft.CognitiveServices/accounts/foundry-b",
     ResourceName = "foundry-b",
-    Deployment = "gpt-5.6-sol",
+    Deployment = "gpt-6.1-sol",
     Endpoint = "https://foundry-b.services.ai.azure.com",
     Wire = ModelWire.Responses,
 };
@@ -163,14 +163,14 @@ var preserved = Rewrite(callerOwned);
 Check(preserved["prompt_cache_key"]!.GetValue<string>() == "caller-owned", "caller cache key was overwritten");
 Check(preserved["prompt_cache_options"]!["mode"]!.GetValue<string>() == "explicit", "caller cache options were overwritten");
 
-var oneOff = Rewrite(new JsonObject { ["model"] = "gpt-5.6-sol", ["input"] = "one-off prompt" });
+var oneOff = Rewrite(new JsonObject { ["model"] = "gpt-6.1-sol", ["input"] = "one-off prompt" });
 Check(oneOff["prompt_cache_key"]!.GetValue<string>() == firstKey,
     "Responses request did not reuse the workspace cache namespace");
 
-var anthropicMapping = otherResource with { Deployment = "claude-opus-5", Wire = ModelWire.Anthropic };
+var anthropicMapping = otherResource with { Deployment = "claude-opus-5-5", Wire = ModelWire.Anthropic };
 var anthropic = Rewrite(new JsonObject
 {
-    ["model"] = "claude-opus-5",
+    ["model"] = "claude-opus-5.5",
     ["messages"] = new JsonArray(new JsonObject { ["role"] = "user", ["content"] = "hello" }),
     ["max_tokens"] = 8,
 }, anthropicMapping);

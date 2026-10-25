@@ -24,11 +24,11 @@ function fixture({ enabled = true } = {}) {
 const event = (type, data = {}, extra = {}) => ({ type, data, ...extra });
 
 test("startup announcement is a single line summarising routed models", () => {
-  const line = startupAnnouncement({ models: ["gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra", "claude-opus-5", "grok-4.6"], verbose: true });
-  assert.equal(line, "⎇ **Lerna** loaded: 5 HydraFusion models routed (gpt-5.6-sol, gpt-5.6-luna, gpt-5.6-terra, claude-opus-5, grok-4.6). Verbose on.");
+  const line = startupAnnouncement({ models: ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra", "claude-opus-5.5", "grok-4.6"], verbose: true });
+  assert.equal(line, "⎇ **Lerna** loaded: 5 HydraFusion models routed (gpt-6.1-sol, gpt-6-luna, gpt-6-astra, claude-opus-5.5, grok-4.6). Verbose on.");
   assert.doesNotMatch(line, /\n/);
   assert.match(startupAnnouncement({ models: [], verbose: false }), /no HydraFusion routes configured yet.*Verbose off/);
-  assert.match(startupAnnouncement({ model: "gpt-5.6-sol", deployment: "sol-deploy", verbose: true }), /gpt-5\.6-sol routed through sol-deploy\. Verbose on\./);
+  assert.match(startupAnnouncement({ model: "gpt-6.1-sol", deployment: "sol-deploy", verbose: true }), /gpt-6\.1-sol routed through sol-deploy\. Verbose on\./);
 });
 
 test("extension subscribes to subagent events used by verbose reporting", async () => {
@@ -41,15 +41,15 @@ test("extension subscribes to subagent events used by verbose reporting", async 
 test("reports HydraFusion routing, phase progress, and persistent completions", async () => {
   const { logs, reporter, tick } = fixture();
   await reporter.handle(event("session.fusion_resolved", {
-    pattern: "review", primaryModel: "gpt-5.6-sol", secondaryModel: "claude-opus-5",
+    pattern: "review", primaryModel: "gpt-6.1-sol", secondaryModel: "claude-opus-5.5",
   }));
   await reporter.handle(event("assistant.fusion_phase_started", {
-    phaseId: "p1", phaseKind: "solver", role: "implementation", model: "gpt-5.6-sol",
+    phaseId: "p1", phaseKind: "solver", role: "implementation", model: "gpt-6.1-sol",
   }));
   tick(2_100);
   await reporter.handle(event("assistant.streaming_delta", { totalResponseSizeBytes: 4096 }));
   await reporter.handle(event("assistant.fusion_phase_completed", {
-    phaseId: "p1", phaseKind: "solver", role: "implementation", model: "gpt-5.6-sol",
+    phaseId: "p1", phaseKind: "solver", role: "implementation", model: "gpt-6.1-sol",
     durationMs: 2500, usage: { inputTokens: 1200, outputTokens: 345, cachedTokens: 800, totalNanoAiu: 5_267_100_000 },
   }));
 
@@ -66,7 +66,7 @@ test("reports HydraFusion routing, phase progress, and persistent completions", 
 test("reports current HydraFusion phase activity without flooding the timeline", async () => {
   const { logs, reporter, tick } = fixture();
   await reporter.handle(event("assistant.fusion_phase_started", {
-    phaseId: "p1", phaseKind: "primary", role: "solver", model: "gpt-5.6-sol",
+    phaseId: "p1", phaseKind: "primary", role: "solver", model: "gpt-6.1-sol",
   }));
   tick(2_100);
   await reporter.handle(event("assistant.fusion_phase_activity", {
@@ -93,7 +93,7 @@ test("reports current HydraFusion phase activity without flooding the timeline",
 test("streams reasoning deltas while a HydraFusion phase is active", async () => {
   const { logs, reporter } = fixture();
   await reporter.handle(event("assistant.fusion_phase_started", {
-    phaseId: "p1", phaseKind: "solver", model: "gpt-5.6-sol",
+    phaseId: "p1", phaseKind: "solver", model: "gpt-6.1-sol",
   }));
   await reporter.handle(event("assistant.reasoning_delta", { deltaContent: "Inspecting " }));
   await reporter.handle(event("assistant.reasoning_delta", { deltaContent: "the configuration." }));
@@ -122,7 +122,7 @@ test("reports the safe reason for a failed Hydra phase", async () => {
 test("reports the final HydraFusion completion under the Route label like the rest of the route lifecycle", async () => {
   const { logs, reporter } = fixture();
   await reporter.handle(event("session.fusion_completed", {
-    durationMs: 140_200, finalSourceModel: "gpt-5.6-luna", totalNanoAiu: 800_000_000,
+    durationMs: 140_200, finalSourceModel: "gpt-6-luna", totalNanoAiu: 800_000_000,
   }));
 
   assert.equal(logs[0].message, "⎇ **Lerna** · Route HydraFusion completed in 140.2s using Luna as the final source, 0.80 AIC.");
@@ -133,14 +133,14 @@ test("reports root Hydra tools immediately", async () => {
   const { logs, reporter } = fixture();
   await reporter.handle(event("tool.execution_start", {
     toolCallId: "fusion", toolName: "view", arguments: { path: "/repo/src/app.mjs" },
-    fusion: { sourceModel: "gpt-5.6-terra", phaseKind: "solver", role: "implementation" },
+    fusion: { sourceModel: "gpt-6-luna", phaseKind: "solver", role: "implementation" },
   }));
   await reporter.handle(event("tool.execution_complete", {
     toolCallId: "fusion", success: true, toolTelemetry: { fileCount: 1 },
   }));
 
   assert.equal(logs.length, 1);
-  assert.equal(logs[0].message, "⎇ **Lerna** · Read Terra · src/app.mjs");
+  assert.equal(logs[0].message, "⎇ **Lerna** · Read Luna · src/app.mjs");
   await reporter.drain();
   assert.equal(logs.length, 1);
   assert.equal(logs[0].options.ephemeral, false, "tool activity must persist in the transcript");
@@ -149,18 +149,18 @@ test("reports root Hydra tools immediately", async () => {
 test("reports every rapid root Hydra tool as it starts", async () => {
   const { logs, reporter } = fixture();
   await reporter.handle(event("session.fusion_resolved", {
-    pattern: "cascade", primaryModel: "gpt-5.6-luna", secondaryModel: "gpt-5.6-sol",
+    pattern: "cascade", primaryModel: "gpt-6-luna", secondaryModel: "gpt-6.1-sol",
   }));
   await reporter.handle(event("assistant.fusion_phase_started", {
-    phaseId: "p1", phaseKind: "solver", role: "primary", model: "gpt-5.6-luna",
+    phaseId: "p1", phaseKind: "solver", role: "primary", model: "gpt-6-luna",
   }));
   for (const [index, pattern] of ["alpha", "beta", "gamma", "delta"].entries()) {
     await reporter.handle(event("tool.execution_start", {
-      toolCallId: `root-${index}`, toolName: "grep", model: "gpt-5.6-luna",
+      toolCallId: `root-${index}`, toolName: "grep", model: "gpt-6-luna",
       arguments: { pattern, path: "/repo/src" },
     }));
     await reporter.handle(event("tool.execution_complete", {
-      toolCallId: `root-${index}`, success: true, model: "gpt-5.6-luna",
+      toolCallId: `root-${index}`, success: true, model: "gpt-6-luna",
     }));
   }
 
@@ -179,7 +179,7 @@ test("reports useful commands without intent or partial output", async () => {
   await reporter.handle(event("assistant.intent", { intent: "Call https://example.test/a?token=secret#frag with api_key=supersecret" }));
   await reporter.handle(event("tool.execution_start", {
     toolCallId: "t1", toolName: "bash", arguments: { command: "npm test -- --api-key=supersecret" },
-    fusion: { sourceModel: "gpt-5.6-luna" },
+    fusion: { sourceModel: "gpt-6-luna" },
   }));
   await reporter.handle(event("tool.execution_partial_result", { toolCallId: "t1", partialOutput: "TOP-SECRET-CONTENT" }));
   tick(2_100);
@@ -287,7 +287,7 @@ test("reports MCP server, tool, and query details", async () => {
   await reporter.handle(event("tool.execution_start", {
     toolCallId: "mcp-1", toolName: "mcp", mcpServerName: "github-mcp-server",
     mcpToolName: "search_code", arguments: JSON.stringify({ query: "requestSessionId" }),
-    fusion: { sourceModel: "gpt-5.6-sol" },
+    fusion: { sourceModel: "gpt-6.1-sol" },
   }));
 
   assert.equal(logs[0].message,
@@ -297,11 +297,11 @@ test("reports MCP server, tool, and query details", async () => {
 test("reports subagents and skills while fusion is active", async () => {
   const { logs, reporter } = fixture();
   await reporter.handle(event("session.fusion_route_started"));
-  await reporter.handle(event("subagent.started", { agentDisplayName: "Code review", model: "claude-opus-5", executionMode: "background" }));
+  await reporter.handle(event("subagent.started", { agentDisplayName: "Code review", model: "claude-opus-5.5", executionMode: "background" }));
   await reporter.handle(event("skill.invoked", { name: "routing" }));
   await reporter.handle(event("subagent.failed", { agentDisplayName: "Code review" }));
 
-  assert.match(logs[1].message, /Code review started on Opus 5 in background mode/);
+  assert.match(logs[1].message, /Code review started on Opus 5\.5 in background mode/);
   assert.match(logs[2].message, /Skill: routing invoked/);
   assert.equal(logs[3].options.level, "warning");
   assert.equal(logs[3].options.ephemeral, false);
@@ -310,7 +310,7 @@ test("reports subagents and skills while fusion is active", async () => {
 test("disabling clears stale tool state and suppresses later events", async () => {
   const { logs, reporter, enable } = fixture();
   await reporter.handle(event("tool.execution_start", {
-    toolCallId: "t1", toolName: "view", fusion: { sourceModel: "gpt-5.6-sol" },
+    toolCallId: "t1", toolName: "view", fusion: { sourceModel: "gpt-6.1-sol" },
   }));
   enable(false);
   await reporter.handle(event("assistant.intent", { intent: "hidden" }));
@@ -323,12 +323,12 @@ test("disabling clears stale tool state and suppresses later events", async () =
 
 test("reports confirmed Azure routing without successful HTTP status noise", async () => {
   const { logs, reporter } = fixture();
-  await reporter.reportResponse({ status: 200, via: "byok", adaptedModel: "claude-opus-5" });
-  await reporter.reportResponse({ status: 429, via: "byok", adaptedModel: "gpt-5.6-sol" });
+  await reporter.reportResponse({ status: 200, via: "byok", adaptedModel: "claude-opus-5.5" });
+  await reporter.reportResponse({ status: 429, via: "byok", adaptedModel: "gpt-6.1-sol" });
   await reporter.reportResponse({ status: 200, via: "copilot", adaptedModel: "mai-code-1.1-flash" });
 
   assert.deepEqual(logs, [{
-    message: "⎇ **Lerna** · Route Opus 5 → Microsoft Foundry",
+    message: "⎇ **Lerna** · Route Opus 5.5 → Microsoft Foundry",
     options: { ephemeral: false, level: "info" },
   }, {
     message: "⎇ **Lerna** · Route Sol → Microsoft Foundry · HTTP 429",
@@ -338,10 +338,10 @@ test("reports confirmed Azure routing without successful HTTP status noise", asy
 
 test("reports a capacity fallback as a route change rather than a failure", async () => {
   const { logs, reporter } = fixture();
-  await reporter.reportResponse({ status: 200, via: "capacity-fallback", adaptedModel: "claude-opus-5" });
+  await reporter.reportResponse({ status: 200, via: "capacity-fallback", adaptedModel: "claude-opus-5.5" });
 
   assert.deepEqual(logs, [{
-    message: "⎇ **Lerna** · Route Opus 5 → Copilot, Foundry deployment at capacity",
+    message: "⎇ **Lerna** · Route Opus 5.5 → Copilot, Foundry deployment at capacity",
     options: { ephemeral: false, level: "warning" },
   }]);
 });

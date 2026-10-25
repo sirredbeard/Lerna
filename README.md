@@ -14,12 +14,14 @@ Four of the six have direct equivalents on Microsoft Foundry:
 
 | HydraFusion model | Microsoft Foundry | Wire format |
 | --- | --- | --- |
-| `gpt-5.6-sol` | yes | OpenAI Responses |
-| `gpt-5.6-luna` | yes | OpenAI Responses |
-| `gpt-5.6-terra` | yes | OpenAI Responses |
-| `claude-opus-5` | yes | Anthropic Messages (`/v1/messages` intercepted and forwarded to Foundry) |
+| `gpt-6.1-sol` | yes | OpenAI Responses |
+| `gpt-6-luna` | yes | OpenAI Responses |
+| `gpt-6-astra` | yes | OpenAI Responses |
+| `claude-opus-5.5` | yes, as deployment `claude-opus-5-5` | Anthropic Messages (`/v1/messages` intercepted and forwarded to Foundry) |
 | `mai-code-1.1-flash` | no equivalent | stays on Copilot |
 | `mai-code-1-flash-picker` | no equivalent | stays on Copilot |
+
+One naming split matters here. Copilot model IDs use a dot for the Claude minor version (`claude-opus-5.5`), and Foundry model and deployment names use a dash (`claude-opus-5-5`). The mapping key is the Copilot ID. The `deployment` value is the Foundry name. The GPT-6 IDs read the same in both places.
 
 Lerna does not change HydraFusion's chosen model ID. It looks up that exact ID in your settings and forwards the request to the deployment you mapped, so you are responsible for mapping it to the same underlying model. The two MAI models cannot be mapped and stay on Copilot's native request path.
 
@@ -100,17 +102,17 @@ Lerna stores routing settings and nonsecret Azure identifiers in Copilot's setti
       "subscriptionId": "..."
     },
     "models": {
-      "gpt-5.6-terra": {
+      "gpt-6-luna": {
         "resourceId": "/subscriptions/.../accounts/YOUR-RESOURCE",
         "resourceName": "YOUR-RESOURCE",
-        "deployment": "gpt-5.6-terra",
+        "deployment": "gpt-6-luna",
         "endpoint": "https://YOUR-RESOURCE.services.ai.azure.com",
         "wire": "responses"
       },
-      "claude-opus-5": {
+      "claude-opus-5.5": {
         "resourceId": "/subscriptions/.../accounts/YOUR-RESOURCE",
         "resourceName": "YOUR-RESOURCE",
-        "deployment": "claude-opus-5",
+        "deployment": "claude-opus-5-5",
         "endpoint": "https://YOUR-RESOURCE.services.ai.azure.com",
         "wire": "anthropic"
       }
@@ -152,14 +154,14 @@ az cognitiveservices account create `
   --custom-domain $accountName
 
 az cognitiveservices model list --location $location `
-  --query "[?name=='gpt-5.6-sol' || name=='gpt-5.6-luna' || name=='gpt-5.6-terra' || name=='claude-opus-5'].{model:name,format:format,version:version,skus:skus[].name}" `
+  --query "[?name=='gpt-6.1-sol' || name=='gpt-6-luna' || name=='gpt-6-astra' || name=='claude-opus-5-5'].{model:name,format:format,version:version,skus:skus[].name}" `
   --output table
 ```
 
 Create deployments one at a time using the version and SKU Azure returned. I recommend keeping `--deployment-name` identical to `--model-name`; Lerna uses the deployment name from your mapping and does not inspect the backing model during inference.
 
 ```powershell
-$modelName = "gpt-5.6-sol"
+$modelName = "gpt-6.1-sol"
 $modelFormat = "OpenAI"
 $modelVersion = "VERSION-FROM-THE-CATALOG"
 
@@ -174,7 +176,7 @@ az cognitiveservices account deployment create `
   --sku-capacity 1000
 ```
 
-Repeat that command only for models available in the account's region. Use `Anthropic` as the model format for `claude-opus-5`. Deployment capacity reserves throughput quota. `GlobalStandard` remains usage-billed, so lowering capacity releases quota or causes earlier throttling, it does not reduce the token price or create an idle-charge saving.
+Repeat that command only for models available in the account's region. Use `Anthropic` as the model format for `claude-opus-5-5`. Deployment capacity reserves throughput quota. `GlobalStandard` remains usage-billed, so lowering capacity releases quota or causes earlier throttling, it does not reduce the token price or create an idle-charge saving.
 
 Give your signed-in Azure user inference access to the account:
 

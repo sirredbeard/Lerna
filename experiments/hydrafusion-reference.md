@@ -67,16 +67,20 @@ The strongest saved reproduction is [`verified-run.json`](verified-run.json). Th
 
 ## Known HydraFusion model boundary
 
-Lerna currently accepts the six model IDs verified against the Copilot CLI planner:
+Lerna accepts six model IDs. GitHub moved the HydraFusion pool on 2026-10-14 to Claude Opus 5.5, GPT-6 Astra, GPT-6.1 Sol, and GPT-6 Luna:
 
 | HydraFusion model ID | Foundry equivalent | Wire | Lerna behavior |
 | --- | --- | --- | --- |
-| `gpt-5.6-sol` | Same model | OpenAI Responses | Routable when mapped |
-| `gpt-5.6-luna` | Same model | OpenAI Responses | Routable when mapped |
-| `gpt-5.6-terra` | Same model | OpenAI Responses | Routable when mapped |
-| `claude-opus-5` | Same model | Anthropic Messages | Routable when mapped |
+| `gpt-6.1-sol` | Same model | OpenAI Responses | Routable when mapped |
+| `gpt-6-luna` | Same model | OpenAI Responses | Routable when mapped |
+| `gpt-6-astra` | Same model | OpenAI Responses | Routable when mapped |
+| `claude-opus-5.5` | `claude-opus-5-5` | Anthropic Messages | Routable when mapped |
 | `mai-code-1.1-flash` | None | Copilot | Never routed |
 | `mai-code-1-flash-picker` | None | Copilot | Never routed |
+
+The Claude naming split is real: Copilot uses `claude-opus-5.5` and Foundry uses `claude-opus-5-5` for the same model. The mapping key is the Copilot ID and the deployment value is the Foundry name.
+
+Verification level, 2026-10-25: `gpt-6-luna` and `gpt-6-astra` are verified against the Copilot CLI 1.0.94 planner. A HydraFusion Single plan ran on `gpt-6-luna` and a HydraFusion Max Single plan ran on `gpt-6-astra`, with `gpt-6.1-sol` shown as the Max fallback alias. `claude-opus-5.5` and `gpt-6.1-sol` rest on the 2026-10-14 pool announcement and the Copilot model catalog. A planner probe for those two IDs is still pending, and the four GPT-5.6 and Claude Opus 5 IDs from the old list no longer appear in the pool.
 
 This is an observed allowlist, not a GitHub API promise. `.github/workflows/copilot-cli-sync.yml` checks new Copilot CLI releases every day, compares model mentions against `.github/copilot-cli-state.json`, and opens review work when the known model set moves.
 
@@ -105,6 +109,8 @@ The authenticated resource is in a private Azure subscription.
 | `claude-sonnet-4-6` | `1` | Anthropic | `GlobalStandard` | 80 | New default | `Microsoft.DefaultV2` | No |
 
 Provisioning state was `Succeeded` for all five deployments on October 2, 2026 UTC.
+
+Update, 2026-10-25: five deployments were added on the same account, deployment name equal to the Foundry model name, SKU `GlobalStandard`: `gpt-6.1-sol` (version `2026-09-29`, capacity 250), `gpt-6-luna` (version `2026-09-22`, capacity 250), `gpt-6-astra` (version `2026-09-03`, capacity 250), `claude-opus-5-5` (version `2`, capacity 40), and `claude-sonnet-5-5` (version `2`, capacity 80). All ten deployments report `Succeeded`. The GPT-6 GlobalStandard quota in this region is 250 per model, where the GPT-5.6 deployments hold 1000. One bounded request per new deployment passed at the endpoint, on the Responses wire for the GPT-6 deployments and the Anthropic wire for the Claude deployments. The sonnet deployment exists for other consumers of the same account. HydraFusion has no sonnet slot.
 
 The number in the capacity column is throughput quota, not prepaid model usage. Lowering `GlobalStandard` capacity can release quota or force earlier throttling, however it does not lower token prices or create an idle-charge saving.
 
@@ -159,6 +165,8 @@ Repricing September's exact Azure Sol token mix at GitHub rates gives $49.02 ins
 - Route Luna, Terra, and Opus to Foundry.
 - Leave the two MAI models on Copilot because no same-model Foundry deployment exists.
 - Keep the same-model boundary. Do not substitute a cheaper model behind a HydraFusion ID.
+
+Update, 2026-10-25: the policy carries forward by slot, it does not carry forward by ID. Terra has no successor in the new pool and its mapping is gone. `gpt-6-luna` and `claude-opus-5.5` route to Foundry, as Luna and Opus did. `gpt-6.1-sol` stays on Copilot, as Sol did, until a price check compares GitHub and Foundry rates for the new model. `gpt-6-astra` is deployed and unmapped. No published rate for Astra on the GitHub side was checked before this update, and the Foundry rate is $10 in and $50 out per million, so routing it by default would spend real money on an unmade decision.
 
 This matches the current local setting and addresses the Copilot review on #6.
 

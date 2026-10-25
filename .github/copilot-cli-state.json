@@ -1,11 +1,11 @@
 {
-  "lastTag": "v1.0.91",
-  "latestVersion": "1.0.91",
+  "lastTag": "v1.0.103",
+  "latestVersion": "1.0.103",
   "hydraFusionModels": [
-    "claude-opus-5",
-    "gpt-5.6-luna",
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
+    "claude-opus-5.5",
+    "gpt-6-astra",
+    "gpt-6-luna",
+    "gpt-6.1-sol",
     "mai-code-1.1-flash",
     "mai-code-1-flash-picker"
   ],
@@ -24,6 +24,7 @@
     "gemini-3.6-flash",
     "gemini-3.7-flash",
     "gemini-3.8-flash",
+    "gpt-5",
     "gpt-5-mini",
     "gpt-5.3-codex",
     "gpt-5.4",
@@ -43,5 +44,5 @@
     "kimi-k3",
     "mai-code-1.1-flash"
   ],
-  "checkedAt": "2026-10-01T22:44:00.762Z"
+  "checkedAt": "2026-10-25T08:45:48.969Z"
 }

@@ -22,7 +22,7 @@ function fixture({ confirm = true, progress, configured = true, enabled = false 
       if (op === "disable") enabled = false;
       if (op === "status") return {
         configured, enabled, verbose: false, model: null, deployment: null,
-        models: configured ? ["gpt-5.6-terra"] : [],
+        models: configured ? ["gpt-6-luna"] : [],
       };
       return {};
     },
@@ -33,7 +33,7 @@ function fixture({ confirm = true, progress, configured = true, enabled = false 
 test("Lerna enables experimental features and switches to HydraFusion", async () => {
   const logs = [];
   const calls = [];
-  let modelId = "gpt-5.6-terra";
+  let modelId = "gpt-6-luna";
   const session = {
     capabilities: { ui: { elicitation: true } },
     ui: { confirm: async () => true },
@@ -88,7 +88,7 @@ test("null userSettings.set results do not crash the enable flow", async () => {
     log: async message => logs.push(message),
     rpc: {
       model: {
-        getCurrent: async () => ({ modelId: "gpt-5.6-terra" }),
+        getCurrent: async () => ({ modelId: "gpt-6-luna" }),
         switchTo: async value => { calls.push(value); },
       },
     },
@@ -106,7 +106,7 @@ test("declining experimental features leaves the selected model unchanged", asyn
     capabilities: { ui: { elicitation: true } },
     ui: { confirm: async () => false },
     log: async message => logs.push(message),
-    rpc: { settings: { get: async () => ({ settings: { experimental: { value: false } } }) }, model: { getCurrent: async () => ({ modelId: "gpt-5.6-terra" }) } },
+    rpc: { settings: { get: async () => ({ settings: { experimental: { value: false } } }) }, model: { getCurrent: async () => ({ modelId: "gpt-6-luna" }) } },
   };
 
   assert.equal(await ensureHydraFusion(session, session.rpc.settings), false);
@@ -122,7 +122,7 @@ test("Lerna switches an already-enabled session to HydraFusion", async () => {
     rpc: {
       settings: { get: async () => ({ settings: { experimental: { value: true } } }) },
       model: {
-        getCurrent: async () => ({ modelId: "gpt-5.6-terra" }),
+        getCurrent: async () => ({ modelId: "gpt-6-luna" }),
         switchTo: async value => calls.push(value),
       },
     },
@@ -177,11 +177,11 @@ test("status describes multi-model HydraFusion routing without null placeholders
   const session = { log: async message => logs.push(message) };
   const bridge = { invoke: async () => ({
     configured: true, enabled: true, verbose: true,
-    model: null, deployment: null, models: ["gpt-5.6-sol", "claude-opus-5"],
+    model: null, deployment: null, models: ["gpt-6.1-sol", "claude-opus-5.5"],
   }) };
 
   await configure(session, bridge, "status");
-  assert.equal(logs[0], "Lerna enabled: 2 HydraFusion models routed (gpt-5.6-sol, claude-opus-5). Verbose on.");
+  assert.equal(logs[0], "Lerna enabled: 2 HydraFusion models routed (gpt-6.1-sol, claude-opus-5.5). Verbose on.");
   assert.doesNotMatch(logs[0], /null/);
 });
 

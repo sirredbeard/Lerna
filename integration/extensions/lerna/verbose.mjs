@@ -56,10 +56,10 @@ function aiCreditText(usage = {}) {
 
 function modelText(model) {
   const aliases = {
-    "gpt-5.6-sol": "Sol",
-    "gpt-5.6-terra": "Terra",
-    "gpt-5.6-luna": "Luna",
-    "claude-opus-5": "Opus 5",
+    "gpt-6.1-sol": "Sol",
+    "gpt-6-astra": "Astra",
+    "gpt-6-luna": "Luna",
+    "claude-opus-5.5": "Opus 5.5",
   };
   return aliases[model] || clean(model, 70) || "The selected model";
 }

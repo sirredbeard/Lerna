@@ -4,10 +4,10 @@ import { pathToFileURL } from 'node:url';
 const repoRoot = process.cwd();
 const statePath = `${repoRoot}/.github/copilot-cli-state.json`;
 const hydraFusionModels = [
-  'claude-opus-5',
-  'gpt-5.6-luna',
-  'gpt-5.6-sol',
-  'gpt-5.6-terra',
+  'claude-opus-5.5',
+  'gpt-6-astra',
+  'gpt-6-luna',
+  'gpt-6.1-sol',
   'mai-code-1.1-flash',
   'mai-code-1-flash-picker',
 ];
